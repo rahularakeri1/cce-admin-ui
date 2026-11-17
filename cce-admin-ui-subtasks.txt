@@ -1,0 +1,483 @@
+================================================================================
+  CCE ADMIN UI — DEVELOPMENT SUB-TASKS (Sequential)
+================================================================================
+
+Service:        cce-admin-ui
+Branch:         feature/admin-ui
+Port:           3002
+Tech Stack:     React 18, TypeScript 5, Vite 6, React Router 7, TanStack Query 5,
+                TanStack Table 8, React Hook Form 7 + Zod 3, Tailwind CSS 4,
+                Heroicons 2, date-fns 4, keycloak-js 26, Vitest + Testing
+                Library + MSW
+Reference Docs: docs/ (5 files) — architecture-overview.md, pages-and-wireframes.md,
+                api-integration.md, developer-setup.md, deployment-guide.md
+                Backend contract: ../cce-admin-service/docs/api-reference.md
+                (authoritative — do not re-derive request/response shapes here)
+Source:         CCE_Admin_Module_PRD.pdf §8 (Frontend requirements F-01..F-15)
+
+Each sub-task below should be completed as a separate commit/PR-ready increment.
+Tasks are ordered by dependency — each builds on the prior. This track can
+start in PARALLEL with the backend (cce-admin-service-subtasks.txt) from day
+one — U1-U4 below only need the API *contract* (api-reference.md), not a
+running backend, since everything is built against MSW mocks until U12.
+"docs is source of truth" rule applies here too: any sub-task that changes a
+page's behaviour or a client-side contract assumption MUST update the
+relevant doc file in docs/ in the SAME PR.
+
+================================================================================
+ARCHITECTURE SUMMARY (must be understood before reading sub-tasks)
+================================================================================
+
+  - AUTH IS MANDATORY: unlike cce-insights-ui, there is NO VITE_AUTH_ENABLED
+    bypass flag. initAuth() always runs before render; an unauthenticated user
+    is always redirected to Keycloak login.
+  - STATIC SIDEBAR: the sidebar (Users, Roles, Menus) is NOT driven by
+    GET /me/menus — that endpoint exists for OTHER consoles (cce-insights-ui)
+    to consume, not this one. Authorization here shows up as inline 403s on
+    the screen that made the call, never as a hidden nav item.
+  - NO OPTIMISTIC UI ANYWHERE: every mutation waits for the server; buttons
+    show a pending state; queries invalidate on success. There is no
+    onMutate cache-patching pattern in this app.
+  - FULL-REPLACEMENT PAYLOADS: the Menus tab, Permissions tab and the user
+    Roles editor all send the COMPLETE desired set on save, never a partial
+    diff — but Save is disabled until the set actually differs from the
+    last-fetched state.
+  - TWO INDEPENDENT TABS on Role Detail (Menus, Permissions) — two separate
+    save actions, two separate query keys, never combined into one "Save"
+    button.
+  - KEYCLOAK_SYNC_FAILED gets ONE shared component, reused on the user-create
+    form and the Permissions tab — never a generic error toast.
+  - CONTRACT-FIRST: build against MSW mirroring
+    ../cce-admin-service/docs/api-reference.md until the real backend's
+    corresponding sub-task (see cce-admin-service-subtasks.txt) is merged,
+    then swap the proxy target — no code changes needed if the MSW handlers
+    were accurate.
+
+================================================================================
+SUB-TASK U0: Service Design Documents — PR for Customer Review
+================================================================================
+
+DESCRIPTION:
+  The design documentation already exists in docs/ (5 files, modeled on
+  cce-insights-ui's structure and cross-referenced against
+  cce-admin-service/docs/api-reference.md). Raise it as a PR for review
+  alongside (or as part of) the backend's A0 sub-task.
+
+DELIVERABLES:
+  Submit docs/ as a single PR:
+  1. architecture-overview.md — system context, tech stack deltas vs.
+     cce-insights-ui, the static-sidebar vs. GET /me/menus distinction, no-
+     optimistic-UI rule, error handling table, query key strategy
+  2. pages-and-wireframes.md — all 6 screens (Users list/create/edit, Roles
+     list, Role detail x2 tabs, Menus catalog) as textual wireframes
+  3. api-integration.md — client.ts shape, hook conventions, error-by-code
+     handling, MSW strategy
+  4. developer-setup.md — points at the shared local infra + the backend's
+     own developer-setup.md
+  5. deployment-guide.md — Docker/Caddy pattern, prerequisites (Keycloak
+     client must exist, bootstrap SUPER_ADMIN must exist)
+
+PR REVIEW CHECKLIST:
+  - [ ] Static sidebar (not GET /me/menus-driven) approach confirmed — this
+        is a deliberate asymmetry with cce-insights-ui's target design, make
+        sure reviewers don't flag it as an inconsistency to "fix"
+  - [ ] facilityScope as free text (not a facility dropdown) accepted for
+        this release — PRD scope says enforcement/validation is a future
+        extension; note it as a known limitation rather than silently
+        building a dropdown that implies enforcement exists
+  - [ ] cce-admin-ui Keycloak client registration plan agreed with whoever
+        owns k8s/seeds/cce-realm.json
+
+ACCEPTANCE CRITERIA:
+  - PR raised with all 5 documents
+  - Reviewer sign-off
+  - PR merged before U1 begins
+
+================================================================================
+SUB-TASK U1: Project Scaffolding & Build Configuration
+================================================================================
+
+DESCRIPTION:
+  Initialize the Vite + React + TypeScript project, folder layout, Tailwind,
+  and the dev proxy. No auth, no API calls yet — this task only needs to
+  render a blank shell.
+
+DELIVERABLES:
+  1. Vite React-TS scaffold + dependencies: react-router-dom,
+     @tanstack/react-query, @tanstack/react-table, react-hook-form, zod,
+     @hookform/resolvers, keycloak-js, date-fns, tailwindcss, @heroicons/react
+     (dev: vitest, @testing-library/react, msw)
+  2. Folder layout: pages/ components/ hooks/ api/ auth/ schemas/ context/
+  3. vite.config.ts: port 3002, dev proxy `/admin/v1` -> `localhost:8085`
+  4. Tailwind configured; a minimal App.tsx rendering a placeholder shell
+  5. Dockerfile (multi-stage: node:20-alpine build -> caddy:2-alpine) +
+     Caddyfile per deployment-guide.md
+  6. .gitignore, README.md (stub)
+
+ACCEPTANCE CRITERIA:
+  - `npm run dev` serves a blank shell on port 3002
+  - `npm run build && npm run lint` pass
+  - Docker image builds
+
+================================================================================
+SUB-TASK U2: Auth Module
+================================================================================
+
+DESCRIPTION:
+  F-01. keycloak-js Authorization Code + PKCE (S256), mandatory — no bypass
+  flag. Must exist before any API call can be made, since every call needs a
+  live token.
+
+DELIVERABLES:
+  1. auth/keycloak.ts — keycloak-js instance, client id `cce-admin-ui`,
+     `initAuth()` using `onLoad: 'login-required'`, `pkceMethod: 'S256'`
+  2. auth/context.tsx — exposes `getToken()`, current Keycloak profile
+  3. main.tsx: `initAuth().then(render)` — app does NOT render until login
+     resolves (no flash of unauthenticated content, no race where a page
+     mounts before a token exists)
+  4. A background interval calling `keycloak.updateToken(70)` every 60s
+  5. Env vars: VITE_KEYCLOAK_URL, VITE_KEYCLOAK_REALM, VITE_KEYCLOAK_CLIENT_ID
+     (developer-setup.md §2)
+
+ACCEPTANCE CRITERIA:
+  - Visiting any route with no session redirects to Keycloak login
+  - After login, the app renders and `getToken()` returns a valid JWT
+  - Token silently refreshes before the 60s mark without forcing a re-login
+  - No `VITE_AUTH_ENABLED`-style bypass exists anywhere in the code
+
+================================================================================
+SUB-TASK U3: API Client & Error Handling
+================================================================================
+
+DESCRIPTION:
+  F-02. Typed fetch wrapper over `/admin/v1`, envelope-unwrapping, and the
+  `ApiError` type every later hook and form depends on.
+
+DELIVERABLES:
+  1. api/client.ts — base request() per api-integration.md §1: attaches
+     Bearer token (auth/keycloak.ts), unwraps `{data, pagination?}`, throws
+     `ApiError(status, code, message)` on any non-2xx, reading
+     `error.code`/`error.message` from the body
+  2. One module per resource, STUBBED for now (real functions added as each
+     screen's sub-task lands): api/users.ts, api/roles.ts, api/menus.ts,
+     api/me.ts
+
+ACCEPTANCE CRITERIA:
+  - A unit test hits client.ts against a mocked fetch returning each error
+    shape from api-reference.md's Error Codes table and asserts `ApiError`
+    carries the right `code`
+  - No file outside api/ constructs a URL or calls `fetch` directly (grep
+    check as part of CI lint if feasible)
+
+================================================================================
+SUB-TASK U4: MSW Mock Handlers
+================================================================================
+
+DESCRIPTION:
+  Mirror every endpoint in cce-admin-service/docs/api-reference.md so every
+  later screen can be built and tested without a running backend.
+
+DELIVERABLES:
+  1. mocks/handlers.ts — one handler per endpoint (GET/POST/PUT/PATCH/DELETE
+     for users, roles, role-menus, role-permissions, role-sync, menus, me,
+     me/menus), response shapes matching api-reference.md's JSON examples
+     exactly
+  2. A toggleable handler variant for `PUT /roles/:id/permissions` that
+     returns `502 KEYCLOAK_SYNC_FAILED` on demand (for testing the sync-
+     failure UI in U8 without waiting for a real gateway)
+  3. A toggleable handler variant for `POST /users` that returns `201` with
+     a `warnings` entry (invite email failed) instead of a clean 201 — for
+     testing U10's warning-banner path independent of the 502 path
+  4. mocks/browser.ts (dev) and mocks/server.ts (tests) MSW setup
+
+ACCEPTANCE CRITERIA:
+  - Every endpoint in api-reference.md's Appendix A has a corresponding
+    handler
+  - A reviewer can diff handlers.ts against api-reference.md and find no gaps
+    in either direction
+
+================================================================================
+SUB-TASK U5: App Shell — Static Sidebar, Header & Core Error Handling
+================================================================================
+
+DESCRIPTION:
+  F-03, F-04, F-05, F-06. The shell every page mounts into, plus the two
+  shared error-handling components every later screen reuses.
+
+DELIVERABLES:
+  1. App.tsx — static sidebar (Users, Roles, Menus — NOT from GET /me/menus,
+     architecture-overview.md §3), header showing username + roles from
+     `GET /me`
+  2. components/InlineForbidden.tsx — renders a 403 inline on the screen
+     that made the call (F-04); used by every later page's query error state
+  3. components/SyncFailedNotice.tsx — the shared KEYCLOAK_SYNC_FAILED
+     component (F-05), built here so U9 and U10 (and U8) can import the same
+     one rather than each inventing their own
+  4. hooks/ pattern established: every mutation hook shows a pending state
+     on its triggering button and invalidates its query key on success, no
+     onMutate cache writes (F-06) — write ONE example hook here
+     (e.g. useCurrentUser) that later hooks copy the pattern from
+  5. React Router routes stubbed (empty pages) for all 6 screens
+
+ACCEPTANCE CRITERIA:
+  - Milestone F1 exit check (PRD §10): login redirect works, header shows
+    `/me` data, an ApiError with any code surfaces via InlineForbidden or an
+    equivalent inline pattern in a test page
+  - Sidebar renders identically regardless of which roles the test user has
+
+================================================================================
+SUB-TASK U6: Roles List & Inline Create
+================================================================================
+
+DESCRIPTION:
+  F-12. First real CRUD screen — intentionally simpler than Users, good
+  warm-up for the full-set/diff patterns used everywhere else.
+
+DELIVERABLES:
+  1. pages/RolesListPage.tsx + hooks/useRoles.ts (list, create)
+  2. schemas/role.ts — Zod: name UPPER_SNAKE_CASE, displayName required
+  3. Inline create form per pages-and-wireframes.md: name field warns
+     "permanent, cannot be renamed" before submit
+  4. `is_system` roles show a lock icon; no delete/rename affordance
+     rendered at all for them (not just disabled)
+  5. 409 DUPLICATE_ROLE_NAME renders inline on the name field even when
+     client-side validation passed (race with another admin)
+
+ACCEPTANCE CRITERIA:
+  - PRD milestone F2 exit check: create a role with a name warning shown;
+    system roles show the lock and no delete action
+  - Creating a role whose name collides server-side (even if Zod passed)
+    shows the 409 inline, not a toast
+
+================================================================================
+SUB-TASK U7: Role Detail — Menus Tab
+================================================================================
+
+DESCRIPTION:
+  F-13. First of the two independent Role Detail tabs.
+
+DELIVERABLES:
+  1. pages/RoleDetailPage.tsx with tab routing (Menus / Permissions)
+  2. hooks/useRoleMenus.ts — GET /menus (full catalog) + GET /roles/:id/menus
+     (current selection) combined into a flat checkbox list (simplified from
+     the PRD's NAV/DETAIL tree — see cce-admin-service/docs/data-dictionary.md
+     §1.3)
+  3. Save diffed against last-fetched selection only, disabled when
+     unchanged; payload sent is always the complete `menuIds` set
+
+ACCEPTANCE CRITERIA:
+  - PRD milestone F2 exit check: menu list saves the full set
+  - Save button is disabled immediately after a successful save (no diff
+    against itself)
+
+================================================================================
+SUB-TASK U8: Role Detail — Permissions Tab & Re-sync
+================================================================================
+
+DESCRIPTION:
+  F-14. The highest-risk UI screen — surfaces the backend's partial-failure
+  state (KEYCLOAK_SYNC_FAILED) using the shared component from U5.
+
+DELIVERABLES:
+  1. hooks/useRolePermissions.ts — GET/PUT /roles/:id/permissions,
+     POST /roles/:id/sync
+  2. Editable rows (method, URI pattern, description, category); add/remove
+     rows client-side, full set sent on Save
+  3. Sync status badge: "synced" vs. the shared `SyncFailedNotice` (U5) with
+     a manual **Re-sync** button calling `POST /roles/:id/sync`
+  4. Use U4's toggleable MSW handler to test both the synced and
+     sync-failed paths without a real gateway
+
+ACCEPTANCE CRITERIA:
+  - PRD milestone F3 exit check: save shows "synced"; MSW 502 shows the
+    retry state; Re-sync works (clears the failed state on a subsequent
+    mocked success)
+  - The sync-failed notice is the SAME component instance/type used later in
+    U10's create-user flow (verify via a shared snapshot/story, not two
+    divergent implementations)
+
+================================================================================
+SUB-TASK U9: Users List
+================================================================================
+
+DESCRIPTION:
+  F-10.
+
+DELIVERABLES:
+  1. pages/UsersListPage.tsx + hooks/useUsers.ts
+  2. Filters (status, role, facility, search) mapped to server-side query
+     params — TanStack Table with server-side pagination, not client-side
+     filtering of a full page
+  3. Row actions: view/edit (navigate), activate/deactivate (confirm dialog
+     -> PATCH status), reset password (confirm dialog -> POST reset-password,
+     copy explicitly states "an email will be sent, no password shown here")
+  4. "Needs attention" indicator: derived client-side (no new field) for any
+     row where status=ACTIVE and last_login_at is empty — this user was
+     created but never completed verify-email/set-password. Clicking it
+     calls the same reset-password endpoint as the regular action, just
+     surfaced more prominently. A row with a non-empty last_login_at never
+     shows this, however old the timestamp (that's a separate, unrelated
+     "dormant account" concern, not this indicator)
+
+ACCEPTANCE CRITERIA:
+  - PRD milestone F4 exit check (list half): paginated, filtered list working
+    against MSW
+  - Changing a filter re-queries the server (verify via the MSW request
+    params in a test), not a client-side array filter
+  - A user with status=ACTIVE and last_login_at=null shows the indicator in
+    a test; one with a real last_login_at timestamp does not, regardless of
+    how old
+
+================================================================================
+SUB-TASK U10: User Create & Edit
+================================================================================
+
+DESCRIPTION:
+  F-11. The most state-heavy screen: one create flow (single POST) and one
+  edit flow (four independent actions on the same page).
+
+DELIVERABLES:
+  1. pages/UserFormPage.tsx (mode="create" | "edit") + hooks/useCreateUser,
+     useUpdateUser, useUpdateUserStatus, useUpdateUserRoles, useResetPassword
+  2. Create: RHF + Zod form, single POST /users submit, pending state on the
+     one button, no separate "sync"/"send invite" step shown to the user —
+     the backend triggers the invite email automatically as part of the
+     same call
+  3. Edit: four SEPARATE actions/buttons (profile PUT, roles PUT, status
+     PATCH, password reset POST), each with its own pending state and error
+     surface — do not collapse into one "Save" that fires all four silently
+  4. 502 KEYCLOAK_SYNC_FAILED on create uses U5's shared `SyncFailedNotice`
+     and does NOT clear the form's entered values
+  5. 409 EMAIL_IN_USE renders inline on the email field
+  6. `201` with a `warnings` array (invite email failed to send, user still
+     created successfully) — navigate to the user as normal, show the
+     warning text inline as a dismissible banner, NOT a blocking error and
+     NOT the same treatment as a 502
+
+ACCEPTANCE CRITERIA:
+  - PRD milestone F4 exit check (create/edit half): create and edit flows
+    both working against MSW, including the 502 state via U4's toggle
+  - A failed create (502) leaves every field exactly as the admin entered it
+  - A `201` response carrying a `warnings` entry still navigates to the
+    created user and shows the warning inline, distinct from both the 502
+    path and a clean 201 with no warnings
+
+================================================================================
+SUB-TASK U11: Menus Catalog
+================================================================================
+
+DESCRIPTION:
+  F-15.
+
+DELIVERABLES:
+  1. pages/MenusCatalogPage.tsx + hooks/useMenus.ts (list/create/update/
+     deactivate via a flat table — simplified from the PRD's NAV/DETAIL tree
+     view, see cce-admin-service/docs/data-dictionary.md §1.3)
+  2. Add/edit form: menuKey, label, path, icon, sortOrder, isActive
+  3. "Deactivate" (toggle isActive) as the primary retirement action; a
+     separate hard-delete action carries a confirm dialog that explicitly
+     names the consequence ("every role with this menu loses it")
+
+ACCEPTANCE CRITERIA:
+  - PRD milestone F5 exit check: add and deactivate a menu entry against MSW
+  - Delete confirm dialog text matches the real consequence (role_menus rows
+    removed), not generic "are you sure" copy
+
+================================================================================
+SUB-TASK U12: Integration Against Real Backend — Scenarios S1-S6
+================================================================================
+
+DESCRIPTION:
+  Swap the Vite proxy from MSW to the real cce-admin-service (once its A8-
+  A14 sub-tasks are merged) and run the PRD's scenarios end to end. This is
+  the frontend half of the E2E milestone gate.
+
+DELIVERABLES:
+  1. Remove/bypass MSW for this run (env-gated, keep MSW available for unit
+     tests)
+  2. Manual or scripted run of scenarios S1 (sidebar/me — N/A for this app's
+     own static sidebar, but GET /me header data still applies), S2-S6
+     exactly as listed in CCE_Admin_Module_PRD.pdf §3, using the real
+     backend + real local Keycloak
+
+ACCEPTANCE CRITERIA:
+  - All applicable scenarios pass against the real backend, not MSW
+  - Any discrepancy between MSW's mocked shape and the real response is
+    fixed in U4's handlers AND flagged to whoever owns the backend sub-task
+    that diverged
+
+================================================================================
+SUB-TASK U13: Config Tuning, Build & Docs Sync
+================================================================================
+
+DESCRIPTION:
+  Final pass — matches the backend's A16. docs/ must match the shipped app
+  exactly.
+
+DELIVERABLES:
+  1. Production Dockerfile/Caddyfile finalized per deployment-guide.md
+  2. README.md: overview, prerequisites, dev setup, build, env var reference
+  3. Full re-read of docs/ against the actual merged code — pages-and-
+     wireframes.md matches real screens, api-integration.md matches the real
+     client.ts, architecture-overview.md's query-key list matches reality
+  4. Verify no stale references to features cut during build (e.g. if a
+     screen's interaction changed from the original wireframe, the doc is
+     updated, not left describing the old version)
+
+ACCEPTANCE CRITERIA:
+  - `npm run build` / `npm run lint` / `npm run test:ci` all pass
+  - A reviewer with no prior context can follow docs/ alone and have it
+    match the running app exactly
+
+================================================================================
+TASK DEPENDENCY GRAPH
+================================================================================
+
+  U0  (Design Docs — PR Review)
+  └── U1  (Scaffolding)                                [blocked until U0 approved]
+      └── U2  (Auth Module)
+          └── U3  (API Client & Error Handling)
+              └── U4  (MSW Mock Handlers)
+                  └── U5  (App Shell, Sidebar, Shared Error Components)
+                      ├── U6  (Roles List & Create)
+                      │   ├── U7  (Role Detail — Menus Tab)
+                      │   └── U8  (Role Detail — Permissions Tab + Re-sync)
+                      ├── U9  (Users List)
+                      │   └── U10 (User Create & Edit)
+                      └── U11 (Menus Catalog)
+                          └── U12 (Integration vs. Real Backend — S1-S6)
+                              └── U13 (Config Tuning + Docs Sync)
+
+  NOTE: U6/U9/U11 can all run in PARALLEL once U5 is merged — three
+        different screens, no shared state.
+        U7 and U8 can run in PARALLEL once U6 is merged (different tabs,
+        different query keys).
+        U12 needs U7, U8, U10 and U11 ALL merged, AND needs the backend's
+        corresponding endpoints (cce-admin-service-subtasks.txt A8-A14)
+        merged too — this is the one cross-repo dependency in this graph.
+        Everything through U11 can proceed with ZERO backend code merged,
+        purely against MSW — this is the whole point of the contract-first
+        split (PRD §10).
+
+================================================================================
+ESTIMATED EFFORT
+================================================================================
+
+  U0:  (design docs — already drafted this session; effort is review time)
+  U1:  3 hours   (scaffolding)
+  U2:  3 hours   (auth — budget real time, it blocks everything else)
+  U3:  2 hours   (API client + error types)
+  U4:  4 hours   (MSW handlers for every endpoint in api-reference.md)
+  U5:  4 hours   (shell + two shared components used everywhere downstream)
+  U6:  3 hours   (roles list/create)
+  U7:  3 hours   (menus tab — tree + diff-to-enable-save logic)
+  U8:  5 hours   (permissions tab — highest-risk screen, sync states)
+  U9:  3 hours   (users list — filters + server pagination)
+  U10: 6 hours   (user create/edit — 4 independent actions, most forms)
+  U11: 3 hours   (menus catalog)
+  U12: 4 hours   (real-backend integration pass, cross-repo coordination)
+  U13: 3 hours   (docs sync + README)
+
+  TOTAL: ~46 hours (~6 working days), plus U0 review time
+
+================================================================================

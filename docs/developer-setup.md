@@ -1,0 +1,63 @@
+# Developer Setup — Admin UI
+
+Design stage — no code yet. Mirrors `cce-insights-ui`'s tooling; see
+[cce-admin-service/docs/developer-setup.md](../../cce-admin-service/docs/developer-setup.md) for the
+backend half of this same local loop.
+
+## Prerequisites
+
+- Node 20+, npm 10+
+- The platform's shared local infra running (`deploy-scripts/local`) — Keycloak realm `cce`, backend
+  reachable on `localhost:8085`
+
+## 1. Scaffold
+
+```bash
+npm create vite@latest cce-admin-ui -- --template react-ts
+cd cce-admin-ui
+npm install react-router-dom @tanstack/react-query @tanstack/react-table \
+  react-hook-form zod @hookform/resolvers keycloak-js date-fns
+npm install -D tailwindcss @heroicons/react vitest @testing-library/react msw
+```
+
+Folder layout (PRD §6): `pages/ components/ hooks/ api/ auth/ schemas/ context/`.
+
+## 2. Environment
+
+| Var | Default | Notes |
+|---|---|---|
+| `VITE_KEYCLOAK_URL` | `${origin}/auth` | `http://localhost:8081` locally against the shared infra |
+| `VITE_KEYCLOAK_REALM` | required | `cce` locally — same realm `cce-insights-ui` uses |
+| `VITE_KEYCLOAK_CLIENT_ID` | `cce-admin-ui` | Needs its own Keycloak client (public, PKCE) — not yet in `k8s/seeds/cce-realm.json`, create manually in the admin console until it is |
+| `VITE_API_BASE_URL` | `""` | Empty locally (Vite proxy handles `/admin/v1/*` → `localhost:8085`) |
+
+```ts
+// vite.config.ts — dev proxy
+server: {
+  port: 3002,
+  proxy: { '/admin/v1': 'http://localhost:8085' },
+}
+```
+
+## 3. Build order (suggested, matches milestone F1 in the PRD)
+
+1. `auth/` first — `initAuth()`, `getToken()`, context. Nothing else can be meaningfully tested
+   without it since every API call needs a token.
+2. `api/client.ts` (typed wrapper, `ApiError`) — see
+   [api-integration.md](api-integration.md#1-api-client).
+3. MSW handlers mirroring
+   [cce-admin-service/docs/api-reference.md](../../cce-admin-service/docs/api-reference.md), including
+   a toggleable `KEYCLOAK_SYNC_FAILED` response.
+4. App shell: static sidebar + header from `GET /me` (F-03).
+5. Screens in PRD milestone order: Roles (F2) → Permissions tab (F3) → Users (F4) → Menus (F5) — see
+   [cce-admin-ui-subtasks.txt] for the exact dependency-ordered breakdown.
+
+## 4. Scripts
+
+`npm run dev` (port 3002), `build` (`tsc -b` then Vite), `test`, `test:ci`, `lint`.
+
+## 5. Running against the real backend
+
+Once `cce-admin-service` is up locally (its own developer-setup.md), point this app at it directly
+via the Vite proxy above — no MSW. Run the PRD's scenarios S1–S6 end to end before considering a
+milestone done (same E2E gate as the backend).

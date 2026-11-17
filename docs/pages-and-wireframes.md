@@ -1,0 +1,160 @@
+# Pages & Wireframes — Admin UI
+
+Textual wireframes for the six screens in F-10…F-15 of `CCE_Admin_Module_PRD.pdf`. No visual mockups
+exist yet — these are structural descriptions to build against, not pixel specs. Flag anything that
+needs an actual design pass rather than guessing at layout.
+
+---
+
+## `/users` — Users List (F-10)
+
+```
+┌─ Users ──────────────────────────────────────────────── [+ New User] ─┐
+│ [Search...] [Status ▾] [Role ▾] [Facility ▾]                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ Username   Email            Status    Roles         Facility  Last   │
+│                                                                Login  │
+│ jdoe       jdoe@moh.rw       ACTIVE    FACILITY_ADMIN  Kigali  2d ago │
+│ asmith  ⚠ asmith@moh.rw      ACTIVE    FACILITY_ADMIN  Huye    —      │
+│ ...                                                [view][edit][⋯]   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                              ◂ 1 2 3 … ▸  20/page ▾  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+- Filters (`status`, `role`, `facility`, `q`) map directly to `GET /users` query params — server-side,
+  not client-filtered.
+- Row actions: **view** (→ `/users/:id`), **edit** (→ `/users/:id`), **activate/deactivate**
+  (`PATCH /users/:id/status`, confirm dialog), **reset password**
+  (`POST /users/:id/reset-password`, confirm dialog — "an email will be sent, no password shown
+  here").
+- **"Needs attention" indicator** (the `⚠ asmith` row above): shown for any row where
+  `status = ACTIVE` and `last_login_at` is empty — this user was created but has never completed
+  verify-email/set-password, so they still can't log in. Purely a derived client-side flag from two
+  columns already in the response, not a new field or endpoint. Clicking it (or the row's reset
+  action) resends the same invite email — same `POST /users/:id/reset-password` call every other row
+  has, just surfaced more prominently here since it's actionable rather than routine
+  ([cce-admin-service api-reference.md § reset-password](../../cce-admin-service/docs/api-reference.md)).
+  A row with `last_login_at` populated — even if stale/old — never shows this; that's a distinct
+  "dormant account" concern, not this indicator.
+- Pagination is server-side (TanStack Table + `pagination` envelope block), default page size 20.
+
+## `/users/new`, `/users/:id` — User Create/Edit (F-11)
+
+```
+┌─ New User ───────────────────────────────────────┐
+│ Username *      [___________]                    │
+│ Email *         [___________]                    │
+│ First name *    [___________]                    │
+│ Last name *     [___________]                    │
+│ Facility scope  [___________]  (free text — not  │
+│                                  validated against│
+│                                  a facility list   │
+│                                  this release)     │
+│ Roles *         [ ] FACILITY_ADMIN                │
+│                 [ ] SUPER_ADMIN                   │
+│                                                    │
+│              [Cancel]   [Create User →]           │
+└───────────────────────────────────────────────────┘
+```
+
+- **Create posts once** — no separate "sync" step shown to the user; `POST /users` does Keycloak
+  provisioning, role assignment, the local insert, and triggers the invite email automatically,
+  server-side, in one call (F-11). The submit button shows a pending state (no optimistic nav) until
+  the `201` or an error returns.
+- **`201` with a `warnings` entry** (the invite email failed to send, but the user was created
+  successfully) — navigate to the user as normal, but show the warning text inline on the next screen
+  (e.g. a dismissible banner), not a blocking error. The "needs attention" indicator on the Users list
+  catches this too if the banner is missed, so this isn't the only safety net.
+- **Edit** is three separate actions sharing one page, not one combined "save": `PUT /users/:id`
+  (profile fields), `PUT /users/:id/roles` (full replacement set), `PATCH /users/:id/status`
+  (activate/deactivate), `POST /users/:id/reset-password` — each its own button, each its own pending
+  state and error surface (F-11). Don't collapse these into a single "Save" that calls four
+  endpoints silently; a partial failure (e.g. roles saved, status patch failed) needs to be visible
+  per-action.
+- A `502 KEYCLOAK_SYNC_FAILED` on create shows the shared sync-failure component
+  (architecture-overview.md §4), not a generic toast — and does **not** clear the form, so the admin
+  doesn't lose their input while deciding whether to retry.
+
+## `/roles` — Roles List (F-12)
+
+```
+┌─ Roles ────────────────────────────────────── [+ New Role] ─────────┐
+│ Name              Display Name            System?                   │
+│ 🔒 SUPER_ADMIN     Super Administrator      🔒 locked                │
+│    FACILITY_ADMIN  Facility Administrator                  [view]   │
+├─ + New Role (inline form) ───────────────────────────────────────────┤
+│ Name *  [UPPER_SNAKE_CASE___]  ⚠ "Name is permanent — cannot be      │
+│                                   renamed after creation"            │
+│ Display name * [___________]                                        │
+│ Description     [___________]                                       │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+- `is_system` roles (`SUPER_ADMIN`) show a lock icon; their row has no delete/rename action, not just
+  a disabled one — the UI shouldn't let an admin discover `409 SYSTEM_ROLE_IMMUTABLE` by clicking
+  something that visibly can't work.
+- Client-side Zod validates `UPPER_SNAKE_CASE` on the name field before submit, but the server is
+  still the authority — a `409 DUPLICATE_ROLE_NAME` renders inline even if the client-side check
+  passed (two admins racing to create the same name).
+
+## `/roles/:id` — Role Detail (F-13, F-14)
+
+```
+┌─ Facility Administrator (FACILITY_ADMIN) ─────────────────────────┐
+│ [ Menus ]  [ Permissions ]                                        │
+├────────────────────────────────────────────────────────────────────┤
+│ Menus tab:                                                        │
+│  ☑ Dashboard                                                      │
+│  ☑ Compliance                                                      │
+│  ☐ Ingestion                                                       │
+│                                           [Save] (disabled: no Δ) │
+├────────────────────────────────────────────────────────────────────┤
+│ Permissions tab:                                                   │
+│  Method  URI Pattern                  Category     Description    │
+│  GET     /v1/insights/compliance/**   COMPLIANCE   ...    [edit]  │
+│  [+ Add permission row]                                           │
+│  Status: ✓ synced          [Save]  [Re-sync]                      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+- **Two independent tabs, two independent saves** — this is the UI expression of the "two axes"
+  design in the backend (menus = soft/cosmetic control, permissions = hard/security control). Saving
+  Menus never touches Permissions and vice versa.
+- Menus tab: flat checkbox list from `GET /menus`, current selection from `GET /roles/:id/menus`
+  (simplified from the PRD's NAV/DETAIL tree — see
+  [cce-admin-service data dictionary §1.3](../../cce-admin-service/docs/data-dictionary.md#13-menus--console-screen-catalog)).
+- **Save is disabled until the set actually changes** — diffed against the last-fetched state, not a
+  dirty flag on individual checkboxes (F-13/F-14 milestone note). The payload sent on save is always
+  the **complete** set, never a partial diff.
+- Permissions tab shows a sync status badge: **synced** (last `PUT` succeeded and its automatic
+  gateway sync succeeded) or **sync failed, retry** (the shared `KEYCLOAK_SYNC_FAILED` component,
+  architecture-overview.md §4) with a manual **Re-sync** button (`POST /roles/:id/sync`).
+
+## `/menus` — Menus Catalog (F-15)
+
+```
+┌─ Menus ────────────────────────────────────────── [+ Add Menu] ─────┐
+│   Dashboard                /                            [edit][✕]   │
+│   Facilities               /facilities                  [edit][✕]   │
+│   Compliance                /compliance                 [edit][✕]   │
+│   Patients                  /compliance/patients         [edit][✕]  │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+- Flat table, ordered by `sort_order` (simplified from the PRD's NAV/DETAIL tree — see
+  [cce-admin-service data dictionary §1.3](../../cce-admin-service/docs/data-dictionary.md#13-menus--console-screen-catalog)).
+  Add/edit form: `menuKey`, `label`, `path`, `icon`, `sortOrder`, `isActive`.
+- "Deactivate" (toggle `isActive`) rather than delete is the primary action for retiring a menu — a
+  hard delete also removes the menu's `role_menus` rows (every role that had it loses the assignment
+  silently), so the delete action should carry a confirm dialog naming that consequence.
+
+---
+
+## Cross-cutting notes
+
+- Every list/detail screen above shows a **403 inline, on the screen that made the call** (F-04) —
+  not a global "access denied" page — since a role might see `/roles` in the nav (it's a static
+  sidebar, architecture-overview.md §7) but lack the permission for a specific action on it.
+- No screen in this console implements optimistic UI (F-06, PRD §2 Out of scope) — every button shows
+  a pending state and waits for the server.
