@@ -6,7 +6,15 @@ backend half of this same local loop.
 
 ## Prerequisites
 
-- Node 20+, npm 10+
+- **Node 20+** (required — not just recommended). Tailwind CSS 4's native `@tailwindcss/oxide`
+  engine ships platform binaries gated on `node >= 20`; npm silently skips installing it on Node
+  18 rather than erroring, which surfaces later as a confusing "Cannot find native binding" build
+  failure that *looks* like the unrelated npm optional-dependencies bug
+  ([npm/cli#4828](https://github.com/npm/cli/issues/4828)) it happens to share an error message
+  with. If you hit that error, check your Node version before chasing the npm bug — on Node 18 the
+  fix is `npm install @tailwindcss/oxide-linux-x64-gnu@<matching-version> --no-save` (or the
+  platform-appropriate package), but upgrading to Node 20+ avoids needing this workaround at all.
+- npm 10+
 - The platform's shared local infra running (`deploy-scripts/local`) — Keycloak realm `cce`, backend
   reachable on `localhost:8085`
 
