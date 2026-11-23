@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { useMe } from "./hooks/useMe";
 import { logout } from "./auth/keycloak";
+import { ApiError } from "./api/client";
 
 // Static sidebar (Users, Roles, Menus) — does NOT consume GET /me/menus. This console's own nav
 // is intentionally static regardless of role; only cce-insights-ui would ever be role-aware here
@@ -21,7 +22,7 @@ function Placeholder({ title }: { title: string }) {
 }
 
 export default function App() {
-  const { data: me, isLoading } = useMe();
+  const { data: me, isLoading, error } = useMe();
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -53,10 +54,16 @@ export default function App() {
             ) : me ? (
               <>
                 Signed in as <span className="font-medium text-gray-900">{me.username}</span>{" "}
-                <span className="text-gray-400">({me.roles.join(", ")})</span>
+                <span className="text-gray-400">
+                  ({me.roles.length > 0 ? me.roles.join(", ") : "no roles"})
+                </span>
               </>
+            ) : error instanceof ApiError && error.status === 403 ? (
+              <span className="text-red-700">
+                Your account has no access to the admin console — ask a Super Admin to add you.
+              </span>
             ) : (
-              "Not signed in"
+              <span className="text-red-700">Could not load your profile — try reloading.</span>
             )}
           </div>
           <button

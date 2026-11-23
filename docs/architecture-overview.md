@@ -153,7 +153,7 @@ duplicated (milestone note, F-11/F-14).
 |---|---|---|
 | Server state | TanStack Query | Users, roles, menus, permissions — all server-owned, no client mutation of cached data |
 | Form state | React Hook Form + Zod | Create/edit forms |
-| Current user | Context, from `GET /me` | Header display only — does **not** drive sidebar visibility (§3) |
+| Current user | Context, from `GET /me` | Header display only — does **not** drive sidebar visibility (§3). Header states: loading; signed in as `username (ROLE, …)` or `(no roles)`; `403` → "Your account has no access to the admin console" (Keycloak login worked, but there is no local `ACTIVE` user); any other error → "Could not load your profile" |
 | UI state | `useState` | Active tab (Menus/Permissions), selected rows |
 
 ### Query key strategy
