@@ -2,6 +2,8 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import { useMe } from "./hooks/useMe";
 import { logout } from "./auth/keycloak";
 import { ApiError } from "./api/client";
+import RolesListPage from "./pages/RolesListPage";
+import RoleDetailPage, { RoleMenusTab, RolePermissionsTabPlaceholder } from "./pages/RoleDetailPage";
 
 // Static sidebar (Users, Roles, Menus) — does NOT consume GET /me/menus. This console's own nav
 // is intentionally static regardless of role; only cce-insights-ui would ever be role-aware here
@@ -16,7 +18,7 @@ function Placeholder({ title }: { title: string }) {
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-      <p className="mt-2 text-sm text-gray-500">Screen not built yet — Milestone 3+.</p>
+      <p className="mt-2 text-sm text-gray-500">Screen not built yet — a later milestone.</p>
     </div>
   );
 }
@@ -78,7 +80,11 @@ export default function App() {
         <main className="flex-1 p-6">
           <Routes>
             <Route path="/users" element={<Placeholder title="Users" />} />
-            <Route path="/roles" element={<Placeholder title="Roles" />} />
+            <Route path="/roles" element={<RolesListPage />} />
+            <Route path="/roles/:id" element={<RoleDetailPage />}>
+              <Route index element={<RoleMenusTab />} />
+              <Route path="permissions" element={<RolePermissionsTabPlaceholder />} />
+            </Route>
             <Route path="/menus" element={<Placeholder title="Menus" />} />
             <Route path="*" element={<Placeholder title="Users" />} />
           </Routes>

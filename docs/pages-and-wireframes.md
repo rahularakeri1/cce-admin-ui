@@ -91,8 +91,11 @@ needs an actual design pass rather than guessing at layout.
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-- `is_system` roles (`SUPER_ADMIN`) show a lock icon; their row has no delete/rename action, not just
-  a disabled one — the UI shouldn't let an admin discover `409 SYSTEM_ROLE_IMMUTABLE` by clicking
+- Each non-system row has a **view** link and a **Delete** button; Delete asks for an explicit
+  "Delete NAME? [Confirm delete] [Cancel]" in the row (no optimistic removal — the row disappears on
+  the next real refetch). `409 ROLE_IN_USE` shows inline in that row ("users still hold this role").
+- `is_system` roles (`SUPER_ADMIN`) show a lock icon; their row has only **view** — no delete/rename
+  action, not just a disabled one — the UI shouldn't let an admin discover `409 SYSTEM_ROLE_IMMUTABLE` by clicking
   something that visibly can't work.
 - Client-side Zod validates `UPPER_SNAKE_CASE` on the name field before submit, but the server is
   still the authority — a `409 DUPLICATE_ROLE_NAME` renders inline even if the client-side check
@@ -118,6 +121,9 @@ needs an actual design pass rather than guessing at layout.
 └────────────────────────────────────────────────────────────────────┘
 ```
 
+- **Milestone 3 ships the Menus tab only.** The Permissions tab is routed (`/roles/:id/permissions`) but
+  renders a placeholder until Milestone 4. The menu checklist lists the whole catalog, flagging
+  inactive menus, and is editable on system roles too.
 - **Two independent tabs, two independent saves** — this is the UI expression of the "two axes"
   design in the backend (menus = soft/cosmetic control, permissions = hard/security control). Saving
   Menus never touches Permissions and vice versa.
