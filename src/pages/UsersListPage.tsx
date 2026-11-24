@@ -24,7 +24,6 @@ const needsAttention = (u: User) => u.status === "ACTIVE" && u.lastLoginAt === n
 const statusStyle: Record<User["status"], string> = {
   ACTIVE: "bg-green-50 text-green-800",
   INACTIVE: "bg-gray-100 text-gray-700",
-  LOCKED: "bg-red-50 text-red-800",
 };
 
 export default function UsersListPage() {
@@ -86,7 +85,6 @@ export default function UsersListPage() {
             <option value="">Any</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
-            <option value="LOCKED">Locked</option>
           </select>
         </div>
         <div>

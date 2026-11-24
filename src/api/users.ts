@@ -6,7 +6,7 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  status: "ACTIVE" | "INACTIVE" | "LOCKED";
+  status: "ACTIVE" | "INACTIVE";
   roles: string[];
   facilityScope: string | null;
   lastLoginAt: string | null;
