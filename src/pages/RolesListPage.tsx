@@ -29,6 +29,11 @@ function CreateRoleFormPanel({ onDone }: { onDone: () => void }) {
           if (err instanceof ApiError && err.code === "DUPLICATE_ROLE_NAME") {
             // Even when client-side validation passed — another admin may have just created it.
             setError("name", { type: "server", message: "A role with this name already exists" });
+          } else if (err instanceof ApiError && err.code === "ROLE_NAME_RESERVED") {
+            setError("name", {
+              type: "server",
+              message: "This name belongs to an existing gateway permission set — choose a different name",
+            });
           } else if (err instanceof ApiError && err.code === "VALIDATION_ERROR") {
             setError("name", { type: "server", message: err.message });
           } else if (err instanceof ApiError) {

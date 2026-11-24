@@ -6,6 +6,14 @@ const BASE = "*/admin/v1";
 // force the KEYCLOAK_SYNC_FAILED / warnings paths without a real backend (U4).
 export const syncState = { permissionsSyncShouldFail: false, createUserEmailShouldFail: false };
 
+interface MockPermission {
+  id?: number;
+  httpMethod: string;
+  uriPattern: string;
+  description: string | null;
+  category: string | null;
+}
+
 const seedMenus = () => [
   { id: "m-1", menuKey: "dashboard", label: "Dashboard", path: "/", icon: "ChartBarIcon", sortOrder: 1, isActive: true },
   { id: "m-2", menuKey: "facilities", label: "Facilities", path: "/facilities", icon: "BuildingOffice2Icon", sortOrder: 2, isActive: true },
@@ -31,6 +39,11 @@ export const mockDb = {
   menus: seedMenus(),
   roles: seedRoles(),
   roleMenus: {} as Record<string, string[]>,
+  permissions: {} as Record<string, MockPermission[]>,
+  // Names gateway already owns in api_permissions — the server refuses to create roles with them.
+  reservedRoleNames: new Set(["COMPLIANCE_READ", "INSIGHTS_READ"]),
+  lastPermissionsPut: null as { roleId: string; body: { permissions: MockPermission[] } } | null,
+  resyncCalls: 0,
   rolesInUse: new Set<string>(),
   lastMenusPut: null as { roleId: string; body: { menuIds: string[] } } | null,
   nextRoleId: 2,
@@ -40,9 +53,14 @@ export function resetMockDb() {
   mockDb.menus = seedMenus();
   mockDb.roles = seedRoles();
   mockDb.roleMenus = {};
+  mockDb.permissions = {};
+  mockDb.lastPermissionsPut = null;
+  mockDb.resyncCalls = 0;
   mockDb.rolesInUse = new Set();
   mockDb.lastMenusPut = null;
   mockDb.nextRoleId = 2;
+  syncState.permissionsSyncShouldFail = false;
+  syncState.createUserEmailShouldFail = false;
 }
 
 const users = [
@@ -91,6 +109,12 @@ export const handlers = [
     if (mockDb.roles.some((r) => r.name === body.name)) {
       return HttpResponse.json(
         { error: { code: "DUPLICATE_ROLE_NAME", message: "Role name already in use" } },
+        { status: 409 },
+      );
+    }
+    if (mockDb.reservedRoleNames.has(body.name)) {
+      return HttpResponse.json(
+        { error: { code: "ROLE_NAME_RESERVED", message: "Name belongs to an existing gateway permission set" } },
         { status: 409 },
       );
     }
@@ -143,26 +167,49 @@ export const handlers = [
     return HttpResponse.json({ data: { menuIds: body.menuIds } });
   }),
 
-  http.get(`${BASE}/roles/:id/permissions`, () => HttpResponse.json({ data: { permissions: [] } })),
-  http.put(`${BASE}/roles/:id/permissions`, async ({ request }) => {
-    const body = await request.json();
+  http.get(`${BASE}/roles/:id/permissions`, ({ params }) =>
+    HttpResponse.json({ data: { permissions: mockDb.permissions[params.id as string] ?? [] } }),
+  ),
+
+  // Mirrors the real endpoint: rows are saved FIRST; a failed sync then answers 502 but keeps them.
+  http.put(`${BASE}/roles/:id/permissions`, async ({ params, request }) => {
+    const roleId = params.id as string;
+    const role = mockDb.roles.find((r) => r.id === roleId);
+    if (role?.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_ROLE_IMMUTABLE", message: "System role cannot be modified" } },
+        { status: 409 },
+      );
+    }
+    const body = (await request.json()) as { permissions: MockPermission[] };
+    mockDb.lastPermissionsPut = { roleId, body };
+    if (body.permissions.length === 0 && mockDb.rolesInUse.has(roleId)) {
+      return HttpResponse.json(
+        { error: { code: "ROLE_IN_USE", message: "Users still hold this role; reassign them first" } },
+        { status: 409 },
+      );
+    }
+    mockDb.permissions[roleId] = body.permissions.map((p, i) => ({ id: i + 1, ...p }));
     if (syncState.permissionsSyncShouldFail) {
       return HttpResponse.json(
         { error: { code: "KEYCLOAK_SYNC_FAILED", message: "Sync to Keycloak failed" } },
         { status: 502 },
       );
     }
-    return HttpResponse.json({ data: body });
+    return HttpResponse.json({ data: { permissions: mockDb.permissions[roleId], syncStatus: "SYNCED" } });
   }),
 
-  http.post(`${BASE}/roles/:id/sync`, () => {
+  http.post(`${BASE}/roles/:id/sync`, ({ params }) => {
+    mockDb.resyncCalls += 1;
     if (syncState.permissionsSyncShouldFail) {
       return HttpResponse.json(
         { error: { code: "KEYCLOAK_SYNC_FAILED", message: "Sync to Keycloak failed" } },
         { status: 502 },
       );
     }
-    return HttpResponse.json({ data: {} });
+    return HttpResponse.json({
+      data: { permissions: mockDb.permissions[params.id as string] ?? [], syncStatus: "SYNCED" },
+    });
   }),
 
   http.get(`${BASE}/menus`, () => HttpResponse.json({ data: mockDb.menus })),

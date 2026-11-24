@@ -3,7 +3,8 @@ import { useMe } from "./hooks/useMe";
 import { logout } from "./auth/keycloak";
 import { ApiError } from "./api/client";
 import RolesListPage from "./pages/RolesListPage";
-import RoleDetailPage, { RoleMenusTab, RolePermissionsTabPlaceholder } from "./pages/RoleDetailPage";
+import RoleDetailPage, { RoleMenusTab } from "./pages/RoleDetailPage";
+import RolePermissionsTab from "./pages/RolePermissionsTab";
 
 // Static sidebar (Users, Roles, Menus) — does NOT consume GET /me/menus. This console's own nav
 // is intentionally static regardless of role; only cce-insights-ui would ever be role-aware here
@@ -83,7 +84,7 @@ export default function App() {
             <Route path="/roles" element={<RolesListPage />} />
             <Route path="/roles/:id" element={<RoleDetailPage />}>
               <Route index element={<RoleMenusTab />} />
-              <Route path="permissions" element={<RolePermissionsTabPlaceholder />} />
+              <Route path="permissions" element={<RolePermissionsTab />} />
             </Route>
             <Route path="/menus" element={<Placeholder title="Menus" />} />
             <Route path="*" element={<Placeholder title="Users" />} />

@@ -137,4 +137,16 @@ describe("RolesListPage", () => {
     expect(await screen.findByText(/don't have permission/i)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
+
+  it("shows ROLE_NAME_RESERVED inline when the name belongs to an existing gateway permission set", async () => {
+    renderPage();
+    const user = await openForm();
+    await user.type(screen.getByLabelText(/^Name/), "COMPLIANCE_READ");
+    await user.type(screen.getByLabelText(/Display name/), "Compliance");
+    await user.click(screen.getByRole("button", { name: "Create role" }));
+
+    expect(await screen.findByText(/belongs to an existing gateway permission set/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Name/)).toHaveAttribute("aria-invalid", "true");
+    expect(mockDb.roles.map((r) => r.name)).not.toContain("COMPLIANCE_READ");
+  });
 });
