@@ -22,8 +22,12 @@ needs an actual design pass rather than guessing at layout.
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+- **Milestone 5 ships the list, filters, pagination and the "needs attention" flag.** The row actions
+  below (view / edit / activate / reset password) arrive with Milestone 6, so rows have no actions yet.
 - Filters (`status`, `role`, `facility`, `q`) map directly to `GET /users` query params — server-side,
-  not client-filtered.
+  not client-filtered. They are applied with an **Apply** button (and cleared with **Reset**), not live
+  on every keystroke, so typing a search doesn't fire a request per character. `q` matches name,
+  username or email, case-insensitively.
 - Row actions: **view** (→ `/users/:id`), **edit** (→ `/users/:id`), **activate/deactivate**
   (`PATCH /users/:id/status`, confirm dialog), **reset password**
   (`POST /users/:id/reset-password`, confirm dialog — "an email will be sent, no password shown
@@ -37,9 +41,11 @@ needs an actual design pass rather than guessing at layout.
   ([cce-admin-service api-reference.md § reset-password](../../cce-admin-service/docs/api-reference.md)).
   A row with `last_login_at` populated — even if stale/old — never shows this; that's a distinct
   "dormant account" concern, not this indicator.
-- Pagination is server-side (TanStack Table + `pagination` envelope block), default page size 20.
+- Pagination is server-side (the `pagination` envelope block): fixed page size 20 with **Previous / Next**
+  and a "Showing 21–25 of 25" range — no page-size dropdown or page numbers yet. The previous page's
+  rows stay on screen while the next one loads. Newest users first.
 
-## `/users/new`, `/users/:id` — User Create/Edit (F-11)
+## `/users/new`, `/users/:id` — User Create/Edit (F-11) — create ships in Milestone 5, edit in Milestone 6
 
 ```
 ┌─ New User ───────────────────────────────────────┐
@@ -58,13 +64,22 @@ needs an actual design pass rather than guessing at layout.
 └───────────────────────────────────────────────────┘
 ```
 
+- **Server outcomes land on the field they're about**, even when client-side validation passed:
+  `409 EMAIL_IN_USE` on Email, `409 USERNAME_IN_USE` on Username, `409 ROLE_NOT_SYNCED` under Roles
+  ("Role(s) not in Keycloak yet: X — open the role's Permissions tab and Save or Re-sync first").
+  `502 KEYCLOAK_SYNC_FAILED` shows the shared `SyncFailedNotice` in its **"nothing was saved"** wording
+  (the whole creation was rolled back, so there is no Re-sync — just submit again; what was typed is kept).
+- Roles may be left empty (the server allows a user with no roles); the wireframe's `*` is not enforced.
 - **Create posts once** — no separate "sync" step shown to the user; `POST /users` does Keycloak
   provisioning, role assignment, the local insert, and triggers the invite email automatically,
   server-side, in one call (F-11). The submit button shows a pending state (no optimistic nav) until
   the `201` or an error returns.
+- **After `201`** the page is replaced by a "User created" confirmation (name, email, roles, "invitation
+  email sent — link valid 72 hours") with **Back to users** and **Create another**. There is no user
+  detail page to navigate to until Milestone 6.
 - **`201` with a `warnings` entry** (the invite email failed to send, but the user was created
-  successfully) — navigate to the user as normal, but show the warning text inline on the next screen
-  (e.g. a dismissible banner), not a blocking error. The "needs attention" indicator on the Users list
+  successfully) — the same confirmation, plus an amber banner with the warning text, not a blocking
+  error. The "needs attention" indicator on the Users list
   catches this too if the banner is missed, so this isn't the only safety net.
 - **Edit** is three separate actions sharing one page, not one combined "save": `PUT /users/:id`
   (profile fields), `PUT /users/:id/roles` (full replacement set), `PATCH /users/:id/status`

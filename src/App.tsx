@@ -3,6 +3,8 @@ import { useMe } from "./hooks/useMe";
 import { logout } from "./auth/keycloak";
 import { ApiError } from "./api/client";
 import RolesListPage from "./pages/RolesListPage";
+import UserCreatePage from "./pages/UserCreatePage";
+import UsersListPage from "./pages/UsersListPage";
 import RoleDetailPage, { RoleMenusTab } from "./pages/RoleDetailPage";
 import RolePermissionsTab from "./pages/RolePermissionsTab";
 
@@ -80,14 +82,15 @@ export default function App() {
 
         <main className="flex-1 p-6">
           <Routes>
-            <Route path="/users" element={<Placeholder title="Users" />} />
+            <Route path="/users" element={<UsersListPage />} />
+            <Route path="/users/new" element={<UserCreatePage />} />
             <Route path="/roles" element={<RolesListPage />} />
             <Route path="/roles/:id" element={<RoleDetailPage />}>
               <Route index element={<RoleMenusTab />} />
               <Route path="permissions" element={<RolePermissionsTab />} />
             </Route>
             <Route path="/menus" element={<Placeholder title="Menus" />} />
-            <Route path="*" element={<Placeholder title="Users" />} />
+            <Route path="*" element={<UsersListPage />} />
           </Routes>
         </main>
       </div>

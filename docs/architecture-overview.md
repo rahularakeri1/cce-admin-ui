@@ -130,11 +130,17 @@ optimistic UI would show success for a request that then partially failed server
 
 ### `KEYCLOAK_SYNC_FAILED` gets its own component (F-05)
 
-Because a `502 KEYCLOAK_SYNC_FAILED` means "your edit was saved but Keycloak hasn't caught up," it
-must never render as a generic error toast — it needs its own message explaining the partial state and
-the next step (the Permissions tab's manual **Re-sync** button, or retrying the user-create form).
-This component is shared between the user-create form and the Role Detail → Permissions tab, not
-duplicated (milestone note, F-11/F-14).
+A `502 KEYCLOAK_SYNC_FAILED` must never render as a generic error toast — it needs its own message
+explaining what survived and the next step. What survived differs by operation, so the one shared
+component (`SyncFailedNotice`, not duplicated — milestone note, F-11/F-14) has two wordings:
+
+| `variant` | Used by | Meaning | Offers |
+|---|---|---|---|
+| `saved` (default) | Role Detail → Permissions tab | The edit **is** stored; only Keycloak is behind | **Re-sync** button |
+| `not-saved` | User-create form | The whole creation was **rolled back**; nothing was stored | Nothing to re-sync — submit the form again |
+
+Saying "your change was saved" after a rolled-back user creation would be false, hence the second
+wording rather than reusing the first.
 
 ## 5. Error Handling
 

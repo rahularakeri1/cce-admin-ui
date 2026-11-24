@@ -4,7 +4,11 @@ const BASE = "*/admin/v1";
 
 // Mirrors cce-admin-service/docs/api-reference.md's JSON examples. A toggleable flag lets tests
 // force the KEYCLOAK_SYNC_FAILED / warnings paths without a real backend (U4).
-export const syncState = { permissionsSyncShouldFail: false, createUserEmailShouldFail: false };
+export const syncState = {
+  permissionsSyncShouldFail: false,
+  createUserEmailShouldFail: false, // invite email fails -> 201 + warnings
+  createUserKeycloakShouldFail: false, // Keycloak down -> 502, nothing saved
+};
 
 interface MockPermission {
   id?: number;
@@ -12,6 +16,19 @@ interface MockPermission {
   uriPattern: string;
   description: string | null;
   category: string | null;
+}
+
+export interface MockUser {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: "ACTIVE" | "INACTIVE" | "LOCKED";
+  roles: string[];
+  facilityScope: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
 }
 
 const seedMenus = () => [
@@ -39,6 +56,10 @@ export const mockDb = {
   menus: seedMenus(),
   roles: seedRoles(),
   roleMenus: {} as Record<string, string[]>,
+  users: [] as MockUser[],
+  unsyncedRoleIds: new Set<string>(),
+  lastUserPost: null as Record<string, unknown> | null,
+  nextUserId: 1,
   permissions: {} as Record<string, MockPermission[]>,
   // Names gateway already owns in api_permissions — the server refuses to create roles with them.
   reservedRoleNames: new Set(["COMPLIANCE_READ", "INSIGHTS_READ"]),
@@ -53,6 +74,10 @@ export function resetMockDb() {
   mockDb.menus = seedMenus();
   mockDb.roles = seedRoles();
   mockDb.roleMenus = {};
+  mockDb.users = [];
+  mockDb.unsyncedRoleIds = new Set();
+  mockDb.lastUserPost = null;
+  mockDb.nextUserId = 1;
   mockDb.permissions = {};
   mockDb.lastPermissionsPut = null;
   mockDb.resyncCalls = 0;
@@ -61,19 +86,8 @@ export function resetMockDb() {
   mockDb.nextRoleId = 2;
   syncState.permissionsSyncShouldFail = false;
   syncState.createUserEmailShouldFail = false;
+  syncState.createUserKeycloakShouldFail = false;
 }
-
-const users = [
-  {
-    id: "u-1",
-    username: "jdoe",
-    email: "jdoe@moh.rw",
-    status: "ACTIVE",
-    roles: ["SUPER_ADMIN"],
-    facilityScope: null,
-    lastLoginAt: null,
-  },
-];
 
 export const handlers = [
   http.get(`${BASE}/me`, () =>
@@ -84,22 +98,84 @@ export const handlers = [
 
   http.get(`${BASE}/me/menus`, () => HttpResponse.json({ data: mockDb.menus })),
 
-  http.get(`${BASE}/users`, () =>
-    HttpResponse.json({ data: users, pagination: { page: 0, pageSize: 20, total: users.length } }),
-  ),
+  // Mirrors GET /users: filters + server-side paging, newest first.
+  http.get(`${BASE}/users`, ({ request }) => {
+    const url = new URL(request.url);
+    const q = url.searchParams.get("q")?.toLowerCase() ?? "";
+    const status = url.searchParams.get("status");
+    const roleId = url.searchParams.get("roleId");
+    const facility = url.searchParams.get("facilityScope")?.toLowerCase();
+    const page = Number(url.searchParams.get("page") ?? 0);
+    const pageSize = Number(url.searchParams.get("pageSize") ?? 20);
+    const roleName = roleId ? mockDb.roles.find((r) => r.id === roleId)?.name : undefined;
 
+    const filtered = [...mockDb.users]
+      .filter((u) => !status || u.status === status.toUpperCase())
+      .filter((u) => !roleId || (roleName !== undefined && u.roles.includes(roleName)))
+      .filter((u) => !facility || (u.facilityScope ?? "").toLowerCase() === facility)
+      .filter(
+        (u) => !q || [u.username, u.email, u.firstName, u.lastName].some((f) => f.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return HttpResponse.json({
+      data: filtered.slice(page * pageSize, (page + 1) * pageSize),
+      pagination: { page, pageSize, total: filtered.length },
+    });
+  }),
+
+  // Mirrors POST /users' outcomes: 409s before anything happens, 502 = rolled back, 201 + warnings.
   http.post(`${BASE}/users`, async ({ request }) => {
-    const body = (await request.json()) as { email: string };
-    if (users.some((u) => u.email === body.email)) {
-      return HttpResponse.json({ error: { code: "EMAIL_IN_USE", message: "Email already in use" } }, { status: 409 });
+    const body = (await request.json()) as {
+      username: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      facilityScope?: string;
+      roleIds: string[];
+    };
+    mockDb.lastUserPost = body;
+    const email = body.email.toLowerCase();
+    if (mockDb.users.some((u) => u.email === email)) {
+      return HttpResponse.json({ error: { code: "EMAIL_IN_USE", message: `Email already in use: ${email}` } }, { status: 409 });
     }
-    if (syncState.createUserEmailShouldFail) {
+    if (mockDb.users.some((u) => u.username === body.username.toLowerCase())) {
+      return HttpResponse.json({ error: { code: "USERNAME_IN_USE", message: "Username already in use" } }, { status: 409 });
+    }
+    const unsynced = body.roleIds.map((id) => mockDb.roles.find((r) => r.id === id)).filter((r) => r && mockDb.unsyncedRoleIds.has(r.id));
+    if (unsynced.length > 0) {
       return HttpResponse.json(
-        { data: { id: "u-2", ...body, status: "ACTIVE" }, warnings: ["Invitation email could not be sent — use Reset Password to resend"] },
-        { status: 201 },
+        {
+          error: {
+            code: "ROLE_NOT_SYNCED",
+            message: `Role(s) not in Keycloak yet: ${unsynced.map((r) => r!.name).join(", ")} — open the role's Permissions tab and Save or Re-sync first`,
+          },
+        },
+        { status: 409 },
       );
     }
-    return HttpResponse.json({ data: { id: "u-2", ...body, status: "ACTIVE" } }, { status: 201 });
+    if (syncState.createUserKeycloakShouldFail) {
+      return HttpResponse.json(
+        { error: { code: "KEYCLOAK_SYNC_FAILED", message: "Keycloak user creation failed" } },
+        { status: 502 },
+      );
+    }
+    const user: MockUser = {
+      id: `u-${mockDb.nextUserId++}`,
+      username: body.username.toLowerCase(),
+      email,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      status: "ACTIVE",
+      roles: body.roleIds.map((id) => mockDb.roles.find((r) => r.id === id)?.name ?? id).sort(),
+      facilityScope: body.facilityScope ?? null,
+      lastLoginAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    mockDb.users.push(user);
+    const warnings = syncState.createUserEmailShouldFail
+      ? ["Invitation email could not be sent — use Reset Password to resend"]
+      : undefined;
+    return HttpResponse.json({ data: user, ...(warnings ? { warnings } : {}) }, { status: 201 });
   }),
 
   http.get(`${BASE}/roles`, () => HttpResponse.json({ data: mockDb.roles })),
