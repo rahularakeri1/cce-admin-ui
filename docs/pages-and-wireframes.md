@@ -97,6 +97,8 @@ needs an actual design pass rather than guessing at layout.
 - `is_system` roles (`SUPER_ADMIN`) show a lock icon; their row has only **view** — no delete/rename
   action, not just a disabled one — the UI shouldn't let an admin discover `409 SYSTEM_ROLE_IMMUTABLE` by clicking
   something that visibly can't work.
+- A name that already exists as a gateway permission set (e.g. `COMPLIANCE_READ`) is refused by the server
+  with `409 ROLE_NAME_RESERVED`, shown inline on the name field.
 - Client-side Zod validates `UPPER_SNAKE_CASE` on the name field before submit, but the server is
   still the authority — a `409 DUPLICATE_ROLE_NAME` renders inline even if the client-side check
   passed (two admins racing to create the same name).
@@ -121,9 +123,8 @@ needs an actual design pass rather than guessing at layout.
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Milestone 3 ships the Menus tab only.** The Permissions tab is routed (`/roles/:id/permissions`) but
-  renders a placeholder until Milestone 4. The menu checklist lists the whole catalog, flagging
-  inactive menus, and is editable on system roles too.
+- The menu checklist lists the whole catalog, flagging inactive menus, and is editable on system roles
+  too.
 - **Two independent tabs, two independent saves** — this is the UI expression of the "two axes"
   design in the backend (menus = soft/cosmetic control, permissions = hard/security control). Saving
   Menus never touches Permissions and vice versa.
@@ -133,9 +134,19 @@ needs an actual design pass rather than guessing at layout.
 - **Save is disabled until the set actually changes** — diffed against the last-fetched state, not a
   dirty flag on individual checkboxes (F-13/F-14 milestone note). The payload sent on save is always
   the **complete** set, never a partial diff.
-- Permissions tab shows a sync status badge: **synced** (last `PUT` succeeded and its automatic
-  gateway sync succeeded) or **sync failed, retry** (the shared `KEYCLOAK_SYNC_FAILED` component,
-  architecture-overview.md §4) with a manual **Re-sync** button (`POST /roles/:id/sync`).
+- Permissions tab (`/roles/:id/permissions`): editable rows — method (GET/POST/PUT/PATCH/DELETE select),
+  URI pattern (must start with `/`, no spaces), category, description — with add/remove. Client-side
+  validation (pattern, duplicate method+pattern) shows next to the row and sends nothing. Save is disabled
+  until the rows differ from what was fetched and always sends the **complete** set. A **system role**
+  (e.g. `SUPER_ADMIN`) shows its rows read-only with a lock note — no inputs, Add or Save. `409 ROLE_IN_USE`
+  (emptying a role users still hold) shows inline.
+- The sync status line reflects only the last Save/Re-sync **in this browser session** — nothing is stored,
+  and gateway can't say whether a role exists in Keycloak:
+  **✓ Synced** (last Save/Re-sync succeeded) · **Sync failed** (the shared notice + Re-sync button; the rows
+  *are* saved, the tab reloads them from the server) · **Sync status unknown** on first load, with a
+  Re-sync link.
+- The failed state is the shared `SyncFailedNotice` (architecture-overview.md §4) with a manual **Re-sync**
+  button (`POST /roles/:id/sync`) — the same component the create-user flow reuses (F-05).
 
 ## `/menus` — Menus Catalog (F-15)
 

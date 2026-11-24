@@ -131,7 +131,3 @@ export function RoleMenusTab() {
     </div>
   );
 }
-
-export function RolePermissionsTabPlaceholder() {
-  return <p className="text-sm text-gray-500">Permissions editing is not built yet — Milestone 4.</p>;
-}

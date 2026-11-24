@@ -6,7 +6,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 import { mockDb } from "../mocks/handlers";
-import RoleDetailPage, { RoleMenusTab, RolePermissionsTabPlaceholder } from "./RoleDetailPage";
+import RoleDetailPage, { RoleMenusTab } from "./RoleDetailPage";
+import RolePermissionsTab from "./RolePermissionsTab";
 
 function renderAt(path: string) {
   mockDb.roles.push({
@@ -25,7 +26,7 @@ function renderAt(path: string) {
         <Routes>
           <Route path="/roles/:id" element={<RoleDetailPage />}>
             <Route index element={<RoleMenusTab />} />
-            <Route path="permissions" element={<RolePermissionsTabPlaceholder />} />
+            <Route path="permissions" element={<RolePermissionsTab />} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -101,9 +102,9 @@ describe("RoleDetailPage — Menus tab", () => {
     expect(saveButton()).toBeEnabled();
   });
 
-  it("has a Permissions tab that is an explicit placeholder until Milestone 4", async () => {
+  it("routes the Permissions tab to the real permissions editor", async () => {
     renderAt("/roles/r-2/permissions");
-    expect(await screen.findByText(/not built yet — Milestone 4/i)).toBeInTheDocument();
+    expect(await screen.findByText("No permissions yet.")).toBeInTheDocument();
   });
 
   it("says so when the role does not exist", async () => {
