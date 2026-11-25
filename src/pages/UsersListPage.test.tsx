@@ -156,4 +156,14 @@ describe("UsersListPage", () => {
     expect(await within(never).findByText("Invitation sent")).toBeInTheDocument();
     expect(mockDb.resetCalls).toBe(1);
   });
+
+  it("marks system accounts with a System badge", async () => {
+    addUser({ firstName: "Boot", lastName: "Strap", isSystem: true });
+    addUser({ firstName: "Plain", lastName: "User" });
+    renderPage();
+
+    const system = (await screen.findByText("Boot Strap")).closest("tr")!;
+    expect(within(system).getByText("System")).toBeInTheDocument();
+    expect(within(screen.getByText("Plain User").closest("tr")!).queryByText("System")).not.toBeInTheDocument();
+  });
 });

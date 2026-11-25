@@ -183,6 +183,11 @@ export default function UsersListPage() {
                       <Link to={`/users/${u.id}`} className="font-medium text-blue-700 hover:underline">
                         {u.firstName} {u.lastName}
                       </Link>
+                      {u.isSystem && (
+                        <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-800" title="Created by the platform — read-only">
+                          System
+                        </span>
+                      )}
                       <div className="font-mono text-xs text-gray-500">{u.username}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{u.email}</td>

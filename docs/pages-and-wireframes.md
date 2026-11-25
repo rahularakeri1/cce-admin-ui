@@ -94,6 +94,11 @@ needs an actual design pass rather than guessing at layout.
   with the reason for an inactive user). Server refusals appear in the section they belong to —
   `LAST_SUPER_ADMIN`, `ROLE_NOT_SYNCED`, `EMAIL_IN_USE` — and a `502` shows the shared "nothing was saved" notice
   with the entered values kept.
+- **System accounts are read-only.** For a user with `isSystem` (the bootstrap admin) the detail page shows a
+  "System account" note, a **System** badge (also on the Users list), read-only profile fields, disabled role
+  checkboxes and no Save buttons, and the Status section says system accounts can't be deactivated. Only
+  **Password & invitation** stays active (reset is the recovery path). The server enforces the same rule
+  (`409 SYSTEM_USER_IMMUTABLE`); the UI just doesn't offer what would be refused.
 - **Edit** is three separate actions sharing one page, not one combined "save": `PUT /users/:id`
   (profile fields), `PUT /users/:id/roles` (full replacement set), `PATCH /users/:id/status`
   (activate/deactivate), `POST /users/:id/reset-password` — each its own button, each its own pending

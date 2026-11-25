@@ -27,6 +27,7 @@ export interface MockUser {
   status: "ACTIVE" | "INACTIVE";
   roles: string[];
   facilityScope: string | null;
+  isSystem?: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 }
@@ -211,6 +212,12 @@ export const handlers = [
     if (fail) return fail;
     const user = mockDb.users.find((u) => u.id === params.id);
     if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_USER_IMMUTABLE", message: `System account ${user.username} cannot be edited, deactivated or have its roles changed from the console` } },
+        { status: 409 },
+      );
+    }
     const body = (await request.json()) as { firstName: string; lastName: string; email: string; facilityScope?: string };
     mockDb.lastUserPut = body;
     const email = body.email.toLowerCase();
@@ -231,6 +238,12 @@ export const handlers = [
     if (fail) return fail;
     const user = mockDb.users.find((u) => u.id === params.id);
     if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_USER_IMMUTABLE", message: `System account ${user.username} cannot be edited, deactivated or have its roles changed from the console` } },
+        { status: 409 },
+      );
+    }
     const body = (await request.json()) as { status: "ACTIVE" | "INACTIVE" };
     mockDb.lastStatusPatch = body.status;
     user.status = body.status; // roles are kept, like the real endpoint
@@ -242,6 +255,12 @@ export const handlers = [
     if (fail) return fail;
     const user = mockDb.users.find((u) => u.id === params.id);
     if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_USER_IMMUTABLE", message: `System account ${user.username} cannot be edited, deactivated or have its roles changed from the console` } },
+        { status: 409 },
+      );
+    }
     const body = (await request.json()) as { roleIds: string[] };
     mockDb.lastRolesPut = body.roleIds;
     user.roles = body.roleIds.map((rid) => mockDb.roles.find((r) => r.id === rid)?.name ?? rid).sort();

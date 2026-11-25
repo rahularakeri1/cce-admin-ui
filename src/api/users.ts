@@ -9,6 +9,8 @@ export interface User {
   status: "ACTIVE" | "INACTIVE";
   roles: string[];
   facilityScope: string | null;
+  /** System-created account (the bootstrap admin): read-only in the console. */
+  isSystem: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 }

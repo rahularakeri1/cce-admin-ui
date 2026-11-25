@@ -376,4 +376,59 @@ describe("UserDetailPage", () => {
 
     expect((await within(status).findAllByText(/don't have permission/i)).length).toBeGreaterThan(0);
   });
+
+  // ---- system accounts ------------------------------------------------------------------------
+
+  it("shows a system account read-only: a notice, no Save buttons, no status action", async () => {
+    seed({ isSystem: true, username: "testadmin", firstName: "Test", lastName: "Admin" });
+    renderPage();
+    await screen.findByRole("heading", { name: "Test Admin" });
+
+    expect(screen.getByRole("note")).toHaveTextContent(/System account/);
+    expect(screen.getByText("System", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByLabelText("First name")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Email")).toHaveAttribute("readonly");
+    expect(within(section("Profile")).queryByRole("button")).not.toBeInTheDocument();
+    expect(await within(section("Roles")).findByLabelText(/FACILITY_ADMIN/)).toBeDisabled();
+    expect(within(section("Roles")).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(section("Status")).getByText(/System accounts can't be deactivated/)).toBeInTheDocument();
+    expect(within(section("Status")).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("still lets you send a system account a password reset email", async () => {
+    seed({ isSystem: true });
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Mira Live" });
+    const pw = section("Password & invitation");
+
+    await user.click(within(pw).getByRole("button", { name: "Send password reset email" }));
+    await user.click(within(pw).getByRole("button", { name: "Confirm send" }));
+
+    expect(await within(pw).findByText(/Email sent to/)).toBeInTheDocument();
+    expect(mockDb.resetCalls).toBe(1);
+  });
+
+  it("shows the server's SYSTEM_USER_IMMUTABLE refusal if a change is somehow attempted", async () => {
+    seed({ isSystem: false });
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Mira Live" });
+    fail(409, "SYSTEM_USER_IMMUTABLE", "System account mira.live cannot be edited, deactivated or have its roles changed from the console");
+
+    await user.clear(screen.getByLabelText("Facility"));
+    await user.type(screen.getByLabelText("Facility"), "Huye");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(await within(section("Profile")).findByText(/System account mira\.live cannot be edited/)).toBeInTheDocument();
+  });
+
+  it("does not offer a normal user's actions as read-only", async () => {
+    seed();
+    renderPage();
+    await screen.findByRole("heading", { name: "Mira Live" });
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("First name")).not.toHaveAttribute("readonly");
+  });
 });

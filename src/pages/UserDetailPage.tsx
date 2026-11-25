@@ -29,7 +29,7 @@ function ActionError({ error }: { error: unknown }) {
   );
 }
 
-function ProfileSection({ user }: { user: User }) {
+function ProfileSection({ user, readOnly }: { user: User; readOnly: boolean }) {
   const update = useUpdateUser(user.id);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
@@ -75,8 +75,9 @@ function ProfileSection({ user }: { user: User }) {
       <input
         id={`p-${id}`}
         autoComplete="off"
+        readOnly={readOnly}
         aria-invalid={errors[id] ? "true" : "false"}
-        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm read-only:bg-gray-50 read-only:text-gray-600"
         {...register(id)}
       />
       {errors[id] && (
@@ -120,15 +121,17 @@ function ProfileSection({ user }: { user: User }) {
             Profile saved.
           </p>
         )}
-        <button type="submit" disabled={!isDirty || update.isPending} className={primary}>
-          {update.isPending ? "Saving…" : "Save profile"}
-        </button>
+        {!readOnly && (
+          <button type="submit" disabled={!isDirty || update.isPending} className={primary}>
+            {update.isPending ? "Saving…" : "Save profile"}
+          </button>
+        )}
       </form>
     </section>
   );
 }
 
-function RolesSection({ user }: { user: User }) {
+function RolesSection({ user, readOnly }: { user: User; readOnly: boolean }) {
   const roles = useRoles();
   const save = useReplaceUserRoles(user.id);
   const current = new Set(roles.data?.filter((r) => user.roles.includes(r.name)).map((r) => r.id) ?? []);
@@ -154,7 +157,7 @@ function RolesSection({ user }: { user: User }) {
         {roles.data?.map((r) => (
           <li key={r.id}>
             <label className="flex items-center gap-2 text-sm text-gray-800">
-              <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} disabled={save.isPending} />
+              <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} disabled={save.isPending || readOnly} />
               <span className="font-mono">{r.name}</span>
               <span className="text-gray-500">{r.displayName}</span>
             </label>
@@ -163,6 +166,7 @@ function RolesSection({ user }: { user: User }) {
       </ul>
       <div className="mt-3 space-y-2">
         <ActionError error={save.error} />
+        {!readOnly && (
         <button
           type="button"
           disabled={!changed || save.isPending}
@@ -172,12 +176,14 @@ function RolesSection({ user }: { user: User }) {
         >
           {save.isPending ? "Saving…" : "Save roles"}
         </button>
+        )}
       </div>
     </section>
   );
 }
 
 function StatusSection({ user, isSelf }: { user: User; isSelf: boolean }) {
+  // System accounts never get an action here — the server would refuse it anyway.
   const setStatus = useSetUserStatus(user.id);
   const [confirming, setConfirming] = useState(false);
   const active = user.status === "ACTIVE";
@@ -193,13 +199,14 @@ function StatusSection({ user, isSelf }: { user: User; isSelf: boolean }) {
       </p>
       <div className="mt-3 space-y-2">
         <ActionError error={setStatus.error} />
-        {active && isSelf && <p className="text-sm text-gray-600">You can't deactivate your own account.</p>}
-        {!(active && isSelf) && !confirming && (
+        {user.isSystem && <p className="text-sm text-gray-600">System accounts can't be deactivated from the console.</p>}
+        {!user.isSystem && active && isSelf && <p className="text-sm text-gray-600">You can't deactivate your own account.</p>}
+        {!user.isSystem && !(active && isSelf) && !confirming && (
           <button type="button" onClick={() => setConfirming(true)} className={active ? secondary : primary}>
             {active ? "Deactivate user" : "Reactivate user"}
           </button>
         )}
-        {!(active && isSelf) && confirming && (
+        {!user.isSystem && !(active && isSelf) && confirming && (
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-800">
               {active ? `Deactivate ${user.firstName} ${user.lastName}?` : `Reactivate ${user.firstName} ${user.lastName}?`}
@@ -304,7 +311,7 @@ export default function UserDetailPage() {
           {user.firstName} {user.lastName}
         </h1>
         <p className="mt-1 text-sm text-gray-600">
-          <span className="font-mono">{user.username}</span> · {user.email} · {user.status === "ACTIVE" ? "Active" : "Inactive"} · last login{" "}
+          <span className="font-mono">{user.username}</span> {user.isSystem && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-800">System</span>} · {user.email} · {user.status === "ACTIVE" ? "Active" : "Inactive"} · last login{" "}
           {user.lastLoginAt ? format(new Date(user.lastLoginAt), "yyyy-MM-dd HH:mm") : "never"}
           {needsAttention && (
             <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Needs attention</span>
@@ -312,8 +319,17 @@ export default function UserDetailPage() {
         </p>
       </div>
       {/* Four independent actions — each its own button, pending state and error surface (F-11). */}
-      <ProfileSection user={user} />
-      <RolesSection user={user} />
+      {user.isSystem && (
+        <div role="note" className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <p className="font-medium">System account</p>
+          <p className="mt-1">
+            Created by the platform. It can't be edited, deactivated or have its roles changed from the console — doing so could lock
+            everyone out. You can still send it a password reset email.
+          </p>
+        </div>
+      )}
+      <ProfileSection user={user} readOnly={user.isSystem} />
+      <RolesSection user={user} readOnly={user.isSystem} />
       <StatusSection user={user} isSelf={me.data?.id === user.id} />
       <PasswordSection user={user} />
     </div>
