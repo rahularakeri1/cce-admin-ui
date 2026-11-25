@@ -75,7 +75,10 @@ export default function UserCreatePage() {
           <p className="mt-3 text-sm text-gray-600">An invitation email was sent. The link is valid for 72 hours.</p>
         )}
         <div className="mt-5 flex gap-3">
-          <Link to="/users" className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+          <Link to={`/users/${created.user.id}`} className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+            View user
+          </Link>
+          <Link to="/users" className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Back to users
           </Link>
           <button type="button" onClick={another} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">

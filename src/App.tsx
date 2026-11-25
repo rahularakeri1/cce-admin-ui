@@ -4,6 +4,7 @@ import { logout } from "./auth/keycloak";
 import { ApiError } from "./api/client";
 import RolesListPage from "./pages/RolesListPage";
 import UserCreatePage from "./pages/UserCreatePage";
+import UserDetailPage from "./pages/UserDetailPage";
 import UsersListPage from "./pages/UsersListPage";
 import RoleDetailPage, { RoleMenusTab } from "./pages/RoleDetailPage";
 import RolePermissionsTab from "./pages/RolePermissionsTab";
@@ -84,6 +85,7 @@ export default function App() {
           <Routes>
             <Route path="/users" element={<UsersListPage />} />
             <Route path="/users/new" element={<UserCreatePage />} />
+            <Route path="/users/:id" element={<UserDetailPage />} />
             <Route path="/roles" element={<RolesListPage />} />
             <Route path="/roles/:id" element={<RoleDetailPage />}>
               <Route index element={<RoleMenusTab />} />

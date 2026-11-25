@@ -56,3 +56,34 @@ export async function createUser(input: CreateUserInput): Promise<CreatedUser> {
   const res = await request<User>("/users", { method: "POST", body: JSON.stringify(input) });
   return { user: res.data, warnings: res.warnings ?? [] };
 }
+
+export interface UpdateUserInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  facilityScope?: string;
+}
+
+export async function getUser(id: string): Promise<User> {
+  return (await request<User>(`/users/${id}`)).data;
+}
+
+/** Profile only. A changed email is re-verified server-side; a failed verification email is a warning. */
+export async function updateUser(id: string, input: UpdateUserInput): Promise<CreatedUser> {
+  const res = await request<User>(`/users/${id}`, { method: "PUT", body: JSON.stringify(input) });
+  return { user: res.data, warnings: res.warnings ?? [] };
+}
+
+export async function setUserStatus(id: string, status: User["status"]): Promise<User> {
+  return (await request<User>(`/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).data;
+}
+
+/** Full replacement: always the complete desired role set. */
+export async function replaceUserRoles(id: string, roleIds: string[]): Promise<User> {
+  return (await request<User>(`/users/${id}/roles`, { method: "PUT", body: JSON.stringify({ roleIds }) })).data;
+}
+
+/** Resend or genuine reset: emails the same verify + set-password link as creation. */
+export async function resetUserPassword(id: string): Promise<void> {
+  await request<{ sent: boolean }>(`/users/${id}/reset-password`, { method: "POST" });
+}

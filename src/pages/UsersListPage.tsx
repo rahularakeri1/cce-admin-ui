@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ApiError } from "../api/client";
 import type { User } from "../api/users";
 import { InlineForbidden } from "../components/InlineForbidden";
+import { useResetUserPassword } from "../hooks/useUser";
 import { useRoles } from "../hooks/useRoles";
 import { useUsers } from "../hooks/useUsers";
 
@@ -25,6 +26,28 @@ const statusStyle: Record<User["status"], string> = {
   ACTIVE: "bg-green-50 text-green-800",
   INACTIVE: "bg-gray-100 text-gray-700",
 };
+
+/** One-click resend for a never-logged-in user — the same endpoint as "Password & invitation" on the detail page. */
+function ResendInvite({ user }: { user: User }) {
+  const reset = useResetUserPassword(user.id);
+  const failed = reset.error instanceof ApiError ? reset.error : null;
+  return (
+    <span className="ml-2 inline-flex items-center gap-2 align-middle">
+      {!reset.isSuccess && (
+        <button
+          type="button"
+          disabled={reset.isPending}
+          onClick={() => reset.mutate()}
+          className="rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+        >
+          {reset.isPending ? "Sending…" : "Resend invite"}
+        </button>
+      )}
+      {reset.isSuccess && <span role="status" className="text-xs text-green-700">Invitation sent</span>}
+      {failed && <span role="alert" className="text-xs text-red-700">{failed.message}</span>}
+    </span>
+  );
+}
 
 export default function UsersListPage() {
   const roles = useRoles();
@@ -157,9 +180,9 @@ export default function UsersListPage() {
                 {data.users.map((u) => (
                   <tr key={u.id} className="border-t border-gray-100 align-top">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">
+                      <Link to={`/users/${u.id}`} className="font-medium text-blue-700 hover:underline">
                         {u.firstName} {u.lastName}
-                      </div>
+                      </Link>
                       <div className="font-mono text-xs text-gray-500">{u.username}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{u.email}</td>
@@ -184,6 +207,7 @@ export default function UsersListPage() {
                           Needs attention
                         </span>
                       )}
+                      {needsAttention(u) && <ResendInvite user={u} />}
                     </td>
                   </tr>
                 ))}
