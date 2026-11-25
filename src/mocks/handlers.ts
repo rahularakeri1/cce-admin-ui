@@ -27,6 +27,7 @@ export interface MockUser {
   status: "ACTIVE" | "INACTIVE";
   roles: string[];
   facilityScope: string | null;
+  isSystem?: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 }
@@ -58,6 +59,13 @@ export const mockDb = {
   roleMenus: {} as Record<string, string[]>,
   users: [] as MockUser[],
   unsyncedRoleIds: new Set<string>(),
+  // The next call to any /users/:id action answers with this error, once — lets a test stage 409s/502s.
+  failNext: null as { status: number; code: string; message: string } | null,
+  lastUserPut: null as Record<string, unknown> | null,
+  lastStatusPatch: null as string | null,
+  lastRolesPut: null as string[] | null,
+  resetCalls: 0,
+  userFetches: 0,
   lastUserPost: null as Record<string, unknown> | null,
   nextUserId: 1,
   permissions: {} as Record<string, MockPermission[]>,
@@ -76,6 +84,12 @@ export function resetMockDb() {
   mockDb.roleMenus = {};
   mockDb.users = [];
   mockDb.unsyncedRoleIds = new Set();
+  mockDb.failNext = null;
+  mockDb.lastUserPut = null;
+  mockDb.lastStatusPatch = null;
+  mockDb.lastRolesPut = null;
+  mockDb.resetCalls = 0;
+  mockDb.userFetches = 0;
   mockDb.lastUserPost = null;
   mockDb.nextUserId = 1;
   mockDb.permissions = {};
@@ -87,6 +101,13 @@ export function resetMockDb() {
   syncState.permissionsSyncShouldFail = false;
   syncState.createUserEmailShouldFail = false;
   syncState.createUserKeycloakShouldFail = false;
+}
+
+/** Consumes mockDb.failNext, if a test staged one. */
+function takeFailure() {
+  const fail = mockDb.failNext;
+  mockDb.failNext = null;
+  return fail ? HttpResponse.json({ error: { code: fail.code, message: fail.message } }, { status: fail.status }) : null;
 }
 
 export const handlers = [
@@ -176,6 +197,86 @@ export const handlers = [
       ? ["Invitation email could not be sent — use Reset Password to resend"]
       : undefined;
     return HttpResponse.json({ data: user, ...(warnings ? { warnings } : {}) }, { status: 201 });
+  }),
+
+  http.get(`${BASE}/users/:id`, ({ params }) => {
+    mockDb.userFetches += 1;
+    const user = mockDb.users.find((u) => u.id === params.id);
+    if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    return HttpResponse.json({ data: user });
+  }),
+
+  // Mirrors PUT /users/:id (profile): email uniqueness 409, warnings when the verification email fails.
+  http.put(`${BASE}/users/:id`, async ({ params, request }) => {
+    const fail = takeFailure();
+    if (fail) return fail;
+    const user = mockDb.users.find((u) => u.id === params.id);
+    if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_USER_IMMUTABLE", message: `System account ${user.username} cannot be edited, deactivated or have its roles changed from the console` } },
+        { status: 409 },
+      );
+    }
+    const body = (await request.json()) as { firstName: string; lastName: string; email: string; facilityScope?: string };
+    mockDb.lastUserPut = body;
+    const email = body.email.toLowerCase();
+    if (mockDb.users.some((u) => u.id !== user.id && u.email === email)) {
+      return HttpResponse.json({ error: { code: "EMAIL_IN_USE", message: `Email already in use: ${email}` } }, { status: 409 });
+    }
+    const emailChanged = email !== user.email;
+    Object.assign(user, { firstName: body.firstName, lastName: body.lastName, email, facilityScope: body.facilityScope ?? null });
+    const warnings =
+      emailChanged && syncState.createUserEmailShouldFail
+        ? ["The new email address was saved, but the verification email could not be sent — use Reset Password to resend"]
+        : undefined;
+    return HttpResponse.json({ data: user, ...(warnings ? { warnings } : {}) });
+  }),
+
+  http.patch(`${BASE}/users/:id/status`, async ({ params, request }) => {
+    const fail = takeFailure();
+    if (fail) return fail;
+    const user = mockDb.users.find((u) => u.id === params.id);
+    if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_USER_IMMUTABLE", message: `System account ${user.username} cannot be edited, deactivated or have its roles changed from the console` } },
+        { status: 409 },
+      );
+    }
+    const body = (await request.json()) as { status: "ACTIVE" | "INACTIVE" };
+    mockDb.lastStatusPatch = body.status;
+    user.status = body.status; // roles are kept, like the real endpoint
+    return HttpResponse.json({ data: user });
+  }),
+
+  http.put(`${BASE}/users/:id/roles`, async ({ params, request }) => {
+    const fail = takeFailure();
+    if (fail) return fail;
+    const user = mockDb.users.find((u) => u.id === params.id);
+    if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.isSystem) {
+      return HttpResponse.json(
+        { error: { code: "SYSTEM_USER_IMMUTABLE", message: `System account ${user.username} cannot be edited, deactivated or have its roles changed from the console` } },
+        { status: 409 },
+      );
+    }
+    const body = (await request.json()) as { roleIds: string[] };
+    mockDb.lastRolesPut = body.roleIds;
+    user.roles = body.roleIds.map((rid) => mockDb.roles.find((r) => r.id === rid)?.name ?? rid).sort();
+    return HttpResponse.json({ data: user });
+  }),
+
+  http.post(`${BASE}/users/:id/reset-password`, ({ params }) => {
+    const fail = takeFailure();
+    if (fail) return fail;
+    const user = mockDb.users.find((u) => u.id === params.id);
+    if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
+    if (user.status !== "ACTIVE") {
+      return HttpResponse.json({ error: { code: "USER_NOT_ACTIVE", message: "User is not active" } }, { status: 409 });
+    }
+    mockDb.resetCalls += 1;
+    return HttpResponse.json({ data: { sent: true } });
   }),
 
   http.get(`${BASE}/roles`, () => HttpResponse.json({ data: mockDb.roles })),

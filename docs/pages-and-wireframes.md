@@ -22,8 +22,11 @@ needs an actual design pass rather than guessing at layout.
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Milestone 5 ships the list, filters, pagination and the "needs attention" flag.** The row actions
-  below (view / edit / activate / reset password) arrive with Milestone 6, so rows have no actions yet.
+- **Row actions are deliberately light.** The name links to the detail page (`/users/:id`), where every action
+  lives. The one thing surfaced on the list is **Resend invite** on a "needs attention" row (same
+  `POST /users/:id/reset-password` as the detail page; shows "Invitation sent" or the error inline).
+  Activate/deactivate and role changes are *not* on the list — they need the detail page's room for confirms
+  and errors. The wireframe's `[view][edit][⋯]` column is therefore just the name link.
 - Filters (`status`, `role`, `facility`, `q`) map directly to `GET /users` query params — server-side,
   not client-filtered. They are applied with an **Apply** button (and cleared with **Reset**), not live
   on every keystroke, so typing a search doesn't fire a request per character. `q` matches name,
@@ -81,6 +84,21 @@ needs an actual design pass rather than guessing at layout.
   successfully) — the same confirmation, plus an amber banner with the warning text, not a blocking
   error. The "needs attention" indicator on the Users list
   catches this too if the banner is missed, so this isn't the only safety net.
+- **Detail page (Milestone 6)** — `/users/:id` shows the user's name, username, email, status and last login, then
+  four independent sections, each a `<section>` with its own button, pending state and error surface:
+  **Profile** (first/last name, email, facility; username shown as permanent; Save disabled until changed; a hint
+  appears while the email is being changed — it is marked unverified, they must sign in again), **Roles**
+  (checklist, sends the complete set, Save disabled until the set changes), **Status** (Deactivate/Reactivate
+  with an explicit in-place confirm; **no Deactivate button on your own account**), **Password & invitation**
+  ("Resend invitation" for a never-signed-in user, "Send password reset email" otherwise; confirm first; unavailable
+  with the reason for an inactive user). Server refusals appear in the section they belong to —
+  `LAST_SUPER_ADMIN`, `ROLE_NOT_SYNCED`, `EMAIL_IN_USE` — and a `502` shows the shared "nothing was saved" notice
+  with the entered values kept.
+- **System accounts are read-only.** For a user with `isSystem` (the bootstrap admin) the detail page shows a
+  "System account" note, a **System** badge (also on the Users list), read-only profile fields, disabled role
+  checkboxes and no Save buttons, and the Status section says system accounts can't be deactivated. Only
+  **Password & invitation** stays active (reset is the recovery path). The server enforces the same rule
+  (`409 SYSTEM_USER_IMMUTABLE`); the UI just doesn't offer what would be refused.
 - **Edit** is three separate actions sharing one page, not one combined "save": `PUT /users/:id`
   (profile fields), `PUT /users/:id/roles` (full replacement set), `PATCH /users/:id/status`
   (activate/deactivate), `POST /users/:id/reset-password` — each its own button, each its own pending

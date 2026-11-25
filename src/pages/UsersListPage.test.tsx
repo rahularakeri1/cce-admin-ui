@@ -136,4 +136,34 @@ describe("UsersListPage", () => {
     expect(await screen.findByText(/don't have permission/i)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
+
+  it("links each name to the user's detail page", async () => {
+    const u = addUser({ firstName: "Mira", lastName: "Live" });
+    renderPage();
+    expect(await screen.findByRole("link", { name: "Mira Live" })).toHaveAttribute("href", `/users/${u.id}`);
+  });
+
+  it("offers 'Resend invite' only on needs-attention rows, and it calls the reset endpoint", async () => {
+    addUser({ firstName: "Never", lastName: "Seen", lastLoginAt: null });
+    addUser({ firstName: "Has", lastName: "LoggedIn" });
+    renderPage();
+    const user = userEvent.setup();
+
+    const never = (await screen.findByText("Never Seen")).closest("tr")!;
+    expect(within(screen.getByText("Has LoggedIn").closest("tr")!).queryByRole("button", { name: "Resend invite" })).not.toBeInTheDocument();
+
+    await user.click(within(never).getByRole("button", { name: "Resend invite" }));
+    expect(await within(never).findByText("Invitation sent")).toBeInTheDocument();
+    expect(mockDb.resetCalls).toBe(1);
+  });
+
+  it("marks system accounts with a System badge", async () => {
+    addUser({ firstName: "Boot", lastName: "Strap", isSystem: true });
+    addUser({ firstName: "Plain", lastName: "User" });
+    renderPage();
+
+    const system = (await screen.findByText("Boot Strap")).closest("tr")!;
+    expect(within(system).getByText("System")).toBeInTheDocument();
+    expect(within(screen.getByText("Plain User").closest("tr")!).queryByText("System")).not.toBeInTheDocument();
+  });
 });

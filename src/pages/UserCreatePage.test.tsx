@@ -44,6 +44,7 @@ describe("UserCreatePage", () => {
     expect(await screen.findByRole("heading", { name: "User created" })).toBeInTheDocument();
     expect(screen.getByText(/Mira Live \(mira@example.org\) was created with FACILITY_ADMIN/)).toBeInTheDocument();
     expect(screen.getByText(/invitation email was sent/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View user" })).toHaveAttribute("href", `/users/${mockDb.users[0].id}`);
     expect(mockDb.lastUserPost).toMatchObject({ username: "mira.live", email: "mira@example.org", facilityScope: "Kigali", roleIds: ["r-2"] });
     expect(mockDb.users).toHaveLength(1);
   });

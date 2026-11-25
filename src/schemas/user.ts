@@ -16,3 +16,7 @@ export const createUserSchema = z.object({
 });
 
 export type CreateUserForm = z.infer<typeof createUserSchema>;
+
+// Profile edit: same rules as create, minus the username (permanent).
+export const updateUserSchema = createUserSchema.omit({ username: true });
+export type UpdateUserForm = z.infer<typeof updateUserSchema>;

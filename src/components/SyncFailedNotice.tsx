@@ -4,6 +4,7 @@
 // Two wordings, because the two situations differ in what survived:
 //  - "saved":     the change IS stored, only Keycloak is behind -> offer Re-sync (Permissions tab)
 //  - "not-saved": the whole operation was rolled back, nothing was stored -> just try again
+//                 (user create, and every user edit/status/role change)
 export function SyncFailedNotice({
   onRetry,
   retrying = false,
@@ -24,7 +25,7 @@ export function SyncFailedNotice({
       <p className="mt-1 text-amber-800">
         {saved
           ? "The data is safely stored. Use Re-sync to try reaching Keycloak again."
-          : "No user was created. Check that Keycloak is reachable, then submit the form again."}
+          : "No changes were applied. Check that Keycloak is reachable, then try again."}
       </p>
       {onRetry && (
         <button
