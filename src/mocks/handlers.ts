@@ -64,6 +64,7 @@ export const mockDb = {
   lastStatusPatch: null as string | null,
   lastRolesPut: null as string[] | null,
   resetCalls: 0,
+  userFetches: 0,
   lastUserPost: null as Record<string, unknown> | null,
   nextUserId: 1,
   permissions: {} as Record<string, MockPermission[]>,
@@ -87,6 +88,7 @@ export function resetMockDb() {
   mockDb.lastStatusPatch = null;
   mockDb.lastRolesPut = null;
   mockDb.resetCalls = 0;
+  mockDb.userFetches = 0;
   mockDb.lastUserPost = null;
   mockDb.nextUserId = 1;
   mockDb.permissions = {};
@@ -197,6 +199,7 @@ export const handlers = [
   }),
 
   http.get(`${BASE}/users/:id`, ({ params }) => {
+    mockDb.userFetches += 1;
     const user = mockDb.users.find((u) => u.id === params.id);
     if (!user) return HttpResponse.json({ error: { code: "USER_NOT_FOUND", message: "No such user" } }, { status: 404 });
     return HttpResponse.json({ data: user });

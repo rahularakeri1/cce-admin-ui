@@ -9,16 +9,18 @@ export function useUser(id: string) {
 }
 
 // No optimistic UI (F-06). Each action is its OWN mutation so each has its own pending state and
-// error surface; on success the server's returned user becomes the page's data and the list is refetched.
-function useUserAction<TVars, TResult extends User | { user: User }>(id: string, fn: (vars: TVars) => Promise<TResult>) {
+// error surface. On success the page is NOT patched from the response: the user and the list are
+// REFETCHED from the server, and the returned promise keeps the button on "Saving…" until that refresh
+// lands, so what you see afterwards is what is actually stored.
+function useUserAction<TVars, TResult>(id: string, fn: (vars: TVars) => Promise<TResult>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: (result) => {
-      const user = "user" in result ? result.user : result;
-      queryClient.setQueryData(userKey(id), user);
-      queryClient.invalidateQueries({ queryKey: usersKey });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: userKey(id) }),
+        queryClient.invalidateQueries({ queryKey: usersKey }),
+      ]),
   });
 }
 

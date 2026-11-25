@@ -83,6 +83,41 @@ describe("UserDetailPage", () => {
     await waitFor(() => expect(save).toBeDisabled()); // the saved values are the new baseline
   });
 
+  it("refetches the user from the server after a save, and shows what is actually stored", async () => {
+    seed();
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Mira Live" });
+    const fetchesBefore = mockDb.userFetches;
+
+    await user.clear(screen.getByLabelText("First name"));
+    await user.type(screen.getByLabelText("First name"), "Maya");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(await screen.findByRole("heading", { name: "Maya Live" })).toBeInTheDocument(); // header refreshed
+    expect(mockDb.userFetches).toBeGreaterThan(fetchesBefore); // a real GET, not just the PUT response
+    expect(screen.getByLabelText("First name")).toHaveValue("Maya");
+    expect(screen.getByText("Profile saved.")).toBeInTheDocument();
+  });
+
+  it("refetches after a role change and after a status change too", async () => {
+    seed();
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Mira Live" });
+
+    let before = mockDb.userFetches;
+    await user.click(await within(section("Roles")).findByLabelText(/DATA_OPS/));
+    await user.click(within(section("Roles")).getByRole("button", { name: "Save roles" }));
+    await waitFor(() => expect(mockDb.userFetches).toBeGreaterThan(before));
+
+    before = mockDb.userFetches;
+    await user.click(within(section("Status")).getByRole("button", { name: "Deactivate user" }));
+    await user.click(within(section("Status")).getByRole("button", { name: "Confirm deactivate" }));
+    await waitFor(() => expect(mockDb.userFetches).toBeGreaterThan(before));
+    expect(await screen.findByText(/This account is/)).toHaveTextContent("Inactive");
+  });
+
   it("warns that changing the email re-verifies it, only while the email is being changed", async () => {
     seed();
     renderPage();
