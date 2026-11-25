@@ -481,3 +481,37 @@ ESTIMATED EFFORT
   TOTAL: ~46 hours (~6 working days), plus U0 review time
 
 ================================================================================
+
+================================================================================
+ADDENDUM — MILESTONES 7-8 (post-PRD): ROLE-AWARE CONSOLE + PROTOCOL MANAGEMENT
+================================================================================
+Agreed 2026-11-25; see cce-admin-module-subtasks.txt for the decisions and the
+integrated exit checks. Update docs/ in the same PR. U0-U13 above are unchanged.
+
+SUB-TASK U14: Role-Aware Shell                                      (~4 hours)
+  1. Sidebar built from GET /me/menus?console=ADMIN (hooks/useAdminMenus.ts),
+     replacing the static list (reverses F-03 — update architecture-overview.md and
+     pages-and-wireframes.md in the same PR).
+  2. Route guards: an unauthorized path redirects to the first allowed tab; no admin
+     menus -> a "no access" screen with Sign out; a loading/error state for the menus
+     call itself (never a flash of the wrong sidebar).
+  3. /protocols placeholder route; Role Detail -> Menus tab grouped by console.
+  ACCEPTANCE: a user whose role carries only "Protocols" sees only that tab and is
+  redirected from /users; SUPER_ADMIN sees all four; both covered by tests.
+
+SUB-TASK U15: Protocols List, Detail and Retire                     (~3 hours)
+  1. pages/ProtocolsListPage.tsx + hooks/useProtocols.ts: server-paged list.
+  2. Detail view with read-only formatted JSON + Copy; Retire with an in-place confirm.
+  ACCEPTANCE: retired status shows after a real refetch; 403 and 502 show inline.
+
+SUB-TASK U16: Protocol Upload                                       (~3 hours)
+  1. File picker or paste; client-side checks (valid JSON, resourceType
+     PlanDefinition, url + version present) before any request; a preview.
+  2. Sends { planDefinitionJson: "<string>" }; rejections and "already loaded" shown
+     inline; 502 shows the unavailable message; refetches the list on success.
+  ACCEPTANCE: a broken file never reaches the server; the sample
+  emr-service-protocol.json uploads end to end.
+
+  ADDENDUM TOTAL: ~10 hours
+
+================================================================================

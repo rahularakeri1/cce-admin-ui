@@ -76,6 +76,8 @@ main.tsx (initAuth() runs and resolves BEFORE render — F-01)
 
 ### Why the sidebar is static here but driven by the API in `cce-insights-ui`'s target design
 
+> **To be reversed by Milestone 7 (planned).** The admin sidebar will be built from `GET /me/menus?console=ADMIN`, and a link the user can't use will not be shown — replacing the decision below (F-03 and the "still sees the link and gets an inline 403" stance). This is what lets a `PROTOCOL_MANAGER` see only the Protocols tab. Until Milestone 7 ships, what follows is the current behaviour. See [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-planned-milestones-78--role-aware-console-and-protocol-management).
+
 `cce-admin-service`'s `GET /me/menus` endpoint exists specifically so **other consoles**
 (`cce-insights-ui`) can render a role-aware sidebar. `cce-admin-ui` itself does **not** consume it
 (F-03) — its own sidebar (Users, Roles, Menus) is static. Authorization for this console is enforced

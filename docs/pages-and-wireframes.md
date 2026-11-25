@@ -208,3 +208,47 @@ needs an actual design pass rather than guessing at layout.
   sidebar, architecture-overview.md §7) but lack the permission for a specific action on it.
 - No screen in this console implements optimistic UI (F-06, PRD §2 Out of scope) — every button shows
   a pending state and waits for the server.
+
+---
+
+## Planned — role-aware sidebar (Milestone 7)
+
+> **Planned — Milestone 7. Not implemented yet;** this is the agreed design, written first (docs-first).
+
+- The sidebar is built from `GET /me/menus?console=ADMIN`, in `sort_order`: **Users**, **Roles**, **Menus**,
+  **Protocols** for a `SUPER_ADMIN`; only the entries a user's roles carry for anyone else. This replaces the
+  static three-link sidebar (F-03).
+- **Route guards.** A URL the user has no menu for redirects to their first allowed tab. A user with no admin
+  menus at all sees a plain "You don't have access to any part of the admin console" screen (still with Sign out).
+- A link a user can't use is not shown; the server still refuses the call (service-level authorization), so
+  hiding is convenience, not security.
+- **Role Detail → Menus tab** groups the catalog under **Insights** and **Admin console**.
+- `/protocols` exists as a placeholder until Milestone 8.
+
+## `/protocols` — Protocols (planned — Milestone 8)
+
+> **Planned — Milestone 8. Not implemented yet;** this is the agreed design, written first (docs-first).
+
+```
+┌─ Protocols ─────────────────────────────────────────── [+ Upload protocol] ─┐
+│ URL                                         Version  Status    Loaded at     │
+│ http://openphc.org/fhir/PlanDefinition/anc  1.0.0    ACTIVE    2026-11-25    │
+│ http://openphc.org/fhir/PlanDefinition/emr  2.1.0    RETIRED   2026-10-02    │
+│                                                         ◂ 1 2 ▸  20/page    │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **List:** URL, version, status, loaded-at; server-paged (`page`, `size`, `sort`), newest first. Each row links
+  to the detail view.
+- **Detail:** the stored definition as read-only formatted JSON with a Copy button, plus **Retire** (explicit
+  in-place confirm; an audited action — a retired protocol stops being matched). No delete in v1.
+- **Upload:** pick a `.json` file or paste. Checked **in the browser before anything is sent**: valid JSON,
+  `resourceType` is `PlanDefinition`, `url` and `version` present. A **preview** shows url, version and the
+  number of actions; **Upload** sends the envelope `{ "planDefinitionJson": "<the resource as a string>" }`.
+- **Server outcomes inline:** a rejection shows the protocol service's own reason; the same `(url, version)`
+  twice is explained ("this version is already loaded — change the version or retire the old one"), not a
+  generic error; `502 PROTOCOL_SERVICE_UNAVAILABLE` shows an inline "protocol service unavailable — nothing was
+  uploaded". No optimistic UI: the list refetches after a successful upload or retire.
+- Visible to `PROTOCOL_MANAGER` and `SUPER_ADMIN` only (via the menu entry); only a `SUPER_ADMIN` can give a
+  user that role.
+
