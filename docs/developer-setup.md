@@ -56,7 +56,7 @@ server: {
 3. MSW handlers mirroring
    [cce-admin-service/docs/api-reference.md](../../cce-admin-service/docs/api-reference.md), including
    a toggleable `KEYCLOAK_SYNC_FAILED` response.
-4. App shell: static sidebar + header from `GET /me` (F-03).
+4. App shell: static sidebar + header from `GET /me` (F-03). *(Milestone 7 replaces the static sidebar with one built from `GET /me/menus?console=ADMIN`.)*
 5. Screens in PRD milestone order: Roles (F2) → Permissions tab (F3) → Users (F4) → Menus (F5) — see
    [cce-admin-ui-subtasks.txt] for the exact dependency-ordered breakdown.
 
