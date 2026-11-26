@@ -1,7 +1,10 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { useMe } from "./hooks/useMe";
+import { useAdminMenus } from "./hooks/useAdminMenus";
 import { logout } from "./auth/keycloak";
 import { ApiError } from "./api/client";
+import type { MyMenu } from "./api/me";
 import RolesListPage from "./pages/RolesListPage";
 import UserCreatePage from "./pages/UserCreatePage";
 import UserDetailPage from "./pages/UserDetailPage";
@@ -9,36 +12,118 @@ import UsersListPage from "./pages/UsersListPage";
 import RoleDetailPage, { RoleMenusTab } from "./pages/RoleDetailPage";
 import RolePermissionsTab from "./pages/RolePermissionsTab";
 
-// Static sidebar (Users, Roles, Menus) — does NOT consume GET /me/menus. This console's own nav
-// is intentionally static regardless of role; only cce-insights-ui would ever be role-aware here
-// (and that integration is out of scope). See docs/architecture-overview.md §3.
-const NAV_ITEMS = [
-  { to: "/users", label: "Users" },
-  { to: "/roles", label: "Roles" },
-  { to: "/menus", label: "Menus" },
-];
+// The screens this build knows how to draw. The sidebar is NOT this list: it comes from
+// GET /me/menus?console=ADMIN (the user's own roles), and a tab the API returns that isn't drawn here
+// is simply not shown. See docs/architecture-overview.md §3 (this reverses the old static sidebar, F-03).
+const KNOWN_SCREENS = ["/users", "/roles", "/menus", "/protocols"];
 
-function Placeholder({ title }: { title: string }) {
+function Placeholder({ title, note }: { title: string; note: string }) {
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-      <p className="mt-2 text-sm text-gray-500">Screen not built yet — a later milestone.</p>
+      <p className="mt-2 text-sm text-gray-500">{note}</p>
     </div>
+  );
+}
+
+function NoAccess() {
+  return (
+    <div role="status" className="mx-auto mt-16 max-w-md rounded-md border border-gray-200 bg-white p-6 text-center">
+      <h1 className="text-lg font-semibold text-gray-900">No access to the admin console</h1>
+      <p className="mt-2 text-sm text-gray-600">
+        Your account is not allowed to open any admin tab. Ask a Super Admin to give your role one.
+      </p>
+      <button
+        type="button"
+        onClick={logout}
+        className="mt-4 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+function MenusError({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  return (
+    <div role="alert" className="mx-auto mt-16 max-w-md rounded-md border border-red-200 bg-red-50 p-6 text-center">
+      <h1 className="text-lg font-semibold text-red-800">Could not load your menus</h1>
+      <p className="mt-2 text-sm text-red-700">We can't tell which tabs you may open, so none are shown.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={retrying}
+        className="mt-4 rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+      >
+        {retrying ? "Retrying…" : "Retry"}
+      </button>
+    </div>
+  );
+}
+
+function AdminRoutes({ menus }: { menus: MyMenu[] }) {
+  const has = (path: string) => menus.some((m) => m.path === path);
+  return (
+    <Routes>
+      {has("/users") && (
+        <>
+          <Route path="/users" element={<UsersListPage />} />
+          <Route path="/users/new" element={<UserCreatePage />} />
+          <Route path="/users/:id" element={<UserDetailPage />} />
+        </>
+      )}
+      {has("/roles") && (
+        <>
+          <Route path="/roles" element={<RolesListPage />} />
+          <Route path="/roles/:id" element={<RoleDetailPage />}>
+            <Route index element={<RoleMenusTab />} />
+            <Route path="permissions" element={<RolePermissionsTab />} />
+          </Route>
+        </>
+      )}
+      {has("/menus") && (
+        <Route path="/menus" element={<Placeholder title="Menus" note="Screen not built yet — a later milestone." />} />
+      )}
+      {has("/protocols") && (
+        <Route
+          path="/protocols"
+          element={<Placeholder title="Protocols" note="Protocol management is not built yet — the next milestone." />}
+        />
+      )}
+      {/* Anything the user may not open (and "/") lands on their first allowed tab, never on a forbidden one. */}
+      <Route path="*" element={<Navigate to={menus[0].path} replace />} />
+    </Routes>
   );
 }
 
 export default function App() {
   const { data: me, isLoading, error } = useMe();
+  const menusQuery = useAdminMenus();
+
+  // Only tabs this build can draw; the API's order (sort_order) is kept, so the first one is the landing page.
+  const tabs = menusQuery.data?.filter((m) => KNOWN_SCREENS.includes(m.path));
+
+  let body: ReactNode;
+  if (tabs) {
+    body = tabs.length > 0 ? <AdminRoutes menus={tabs} /> : <NoAccess />;
+  } else if (menusQuery.isLoading) {
+    body = <p className="text-sm text-gray-500">Loading…</p>;
+  } else if (menusQuery.error instanceof ApiError && menusQuery.error.status === 403) {
+    // 403 = this account has no local admin user / no role — an answer, not a failure: nothing to retry.
+    body = <NoAccess />;
+  } else {
+    body = <MenusError onRetry={() => void menusQuery.refetch()} retrying={menusQuery.isFetching} />;
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <nav className="w-56 flex-none border-r border-gray-200 bg-white p-4">
+      <nav className="w-56 flex-none border-r border-gray-200 bg-white p-4" aria-label="Admin tabs">
         <div className="mb-6 text-lg font-bold text-gray-900">CCE Admin</div>
         <ul className="space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <li key={item.to}>
+          {(tabs ?? []).map((item) => (
+            <li key={item.id}>
               <NavLink
-                to={item.to}
+                to={item.path}
                 className={({ isActive }) =>
                   `block rounded-md px-3 py-2 text-sm font-medium ${
                     isActive ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-100"
@@ -81,20 +166,7 @@ export default function App() {
           </button>
         </header>
 
-        <main className="flex-1 p-6">
-          <Routes>
-            <Route path="/users" element={<UsersListPage />} />
-            <Route path="/users/new" element={<UserCreatePage />} />
-            <Route path="/users/:id" element={<UserDetailPage />} />
-            <Route path="/roles" element={<RolesListPage />} />
-            <Route path="/roles/:id" element={<RoleDetailPage />}>
-              <Route index element={<RoleMenusTab />} />
-              <Route path="permissions" element={<RolePermissionsTab />} />
-            </Route>
-            <Route path="/menus" element={<Placeholder title="Menus" />} />
-            <Route path="*" element={<UsersListPage />} />
-          </Routes>
-        </main>
+        <main className="flex-1 p-6">{body}</main>
       </div>
     </div>
   );

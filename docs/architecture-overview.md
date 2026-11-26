@@ -63,7 +63,7 @@ is a deliberate hardening choice, not an oversight; don't carry the insights-ui 
 
 ```
 main.tsx (initAuth() runs and resolves BEFORE render — F-01)
-└── App.tsx (static sidebar + header from GET /me — F-03)
+└── App.tsx (sidebar from GET /me/menus?console=ADMIN + header from GET /me — Milestone 7, reverses F-03)
     ├── /users           → UsersListPage        (F-10)
     ├── /users/new       → UserFormPage (create) (F-11)
     ├── /users/:id       → UserFormPage (edit)    (F-11)
@@ -74,18 +74,27 @@ main.tsx (initAuth() runs and resolves BEFORE render — F-01)
     └── /menus           → MenusCatalogPage      (F-15)
 ```
 
-### Why the sidebar is static here but driven by the API in `cce-insights-ui`'s target design
+### Why the sidebar is driven by the API (Milestone 7 — this reversed the earlier static sidebar, F-03)
 
-> **To be reversed by Milestone 7 (planned).** The admin sidebar will be built from `GET /me/menus?console=ADMIN`, and a link the user can't use will not be shown — replacing the decision below (F-03 and the "still sees the link and gets an inline 403" stance). This is what lets a role that carries only the Protocols tab see only that tab. Until Milestone 7 ships, what follows is the current behaviour. See [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-planned-milestones-78--role-aware-console-and-protocol-management).
+> **Milestone 7 reversed the old decision** (F-03: a static Users / Roles / Menus sidebar, a user without
+> permission "still sees the link and gets an inline 403"). The sidebar is now built from
+> `GET /me/menus?console=ADMIN`, and a tab the user can't use is not shown. This is what lets a role that
+> carries only the Protocols tab see only that tab. See
+> [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-milestones-78--role-aware-console-and-protocol-management).
 
-`cce-admin-service`'s `GET /me/menus` endpoint exists specifically so **other consoles**
-(`cce-insights-ui`) can render a role-aware sidebar. `cce-admin-ui` itself does **not** consume it
-(F-03) — its own sidebar (Users, Roles, Menus) is static. Authorization for this console is enforced
-by `api_permissions` at the gateway and re-checked at the service, not by hiding nav items; a user
-without permission for a screen still sees the link and gets an inline `403` (F-04), rather than the
-nav silently disappearing. This is a deliberate asymmetry, not an inconsistency: menus are a feature
-this service *exposes*, not one `cce-admin-ui` *consumes* — see
-[cce-admin-service/docs/api-reference.md — GET /me/menus](../../cce-admin-service/docs/api-reference.md#get-memenus).
+`App.tsx` calls `useAdminMenus()` (`GET /me/menus?console=ADMIN`) and:
+
+- renders the returned tabs as the sidebar, in the API's order; a tab this build has no screen for is not shown;
+- renders a route only for tabs the user has; any other URL (and `/`) redirects to the first allowed tab, which is
+  the landing page;
+- shows a **"no access"** screen (with Sign out) when the user has no tab — or when the call answers `403`;
+- shows an **error with Retry** when the call fails otherwise, never a wrong or empty-looking sidebar;
+- re-checks on window focus, so a tab another admin just added or took away appears without a manual reload
+  (the service reads the user's database roles on every call, so there is no token-refresh lag).
+
+Hiding a tab is convenience, not security: `cce-admin-service` refuses every management endpoint to anyone but
+`SUPER_ADMIN` on its own, and `api_permissions` is still enforced at the gateway. A direct inline `403` (F-04)
+remains the answer for an action a user reaches but may not perform.
 
 ### Layer responsibilities
 
@@ -97,7 +106,7 @@ this service *exposes*, not one `cce-admin-ui` *consumes* — see
 | `api/` | Typed `fetch` wrapper (`client.ts`) + one module per resource | No React dependencies; unwraps the `{data, pagination?}` / `{error:{code,message}}` envelope into `ApiError` |
 | `auth/` | `keycloak-js` init, token refresh, context | `initAuth()` blocks render (F-01) |
 | `schemas/` | Zod schemas | Mirror backend validation (UPPER_SNAKE_CASE role names, email format, required fields) so a client-side error surfaces before a round trip, but server errors by `error.code` still render (milestone note) |
-| `context/` | Current-user context from `GET /me` | Populates the header; sidebar does **not** depend on `/me/menus` (F-03) |
+| `context/` | Current-user context from `GET /me` | Populates the header; the sidebar comes from `hooks/useAdminMenus.ts` (`GET /me/menus?console=ADMIN`, Milestone 7) |
 
 ## 4. Data Flow — Mutation Lifecycle
 
@@ -195,9 +204,9 @@ so their caches should invalidate independently too.
 </Routes>
 ```
 
-Sidebar (static, F-03): **Users**, **Roles**, **Menus** — three links, always rendered the same for
-every signed-in user regardless of role. What a user can actually *do* on each screen is governed by
-`api_permissions`, surfaced as inline `403`s, not by hiding the link.
+Sidebar (Milestone 7): built from `GET /me/menus?console=ADMIN` — **Users**, **Roles**, **Menus**,
+**Protocols** for a `SUPER_ADMIN`, only the entries a role carries for anyone else (see §3). What a user can
+actually *do* on a screen they reach is still governed by `api_permissions`, surfaced as inline `403`s.
 
 ## 8. Deployment
 

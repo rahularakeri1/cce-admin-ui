@@ -156,8 +156,9 @@ needs an actual design pass rather than guessing at layout.
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-- The menu checklist lists the whole catalog, flagging inactive menus, and is editable on system roles
-  too.
+- The menu checklist lists the whole catalog grouped under **Insights** and **Admin console**, flagging inactive
+  menus, and is editable on system roles too — except that the admin tabs follow the rules described under
+  "Role-aware sidebar" below (greyed out / locked).
 - **Two independent tabs, two independent saves** — this is the UI expression of the "two axes"
   design in the backend (menus = soft/cosmetic control, permissions = hard/security control). Saving
   Menus never touches Permissions and vice versa.
@@ -204,24 +205,26 @@ needs an actual design pass rather than guessing at layout.
 ## Cross-cutting notes
 
 - Every list/detail screen above shows a **403 inline, on the screen that made the call** (F-04) —
-  not a global "access denied" page — since a role might see `/roles` in the nav (it's a static
-  sidebar, architecture-overview.md §7) but lack the permission for a specific action on it.
+  not a global "access denied" page — since a role might see the Roles tab in the sidebar but lack the
+  permission for a specific action on it.
 - No screen in this console implements optimistic UI (F-06, PRD §2 Out of scope) — every button shows
   a pending state and waits for the server.
 
 ---
 
-## Planned — role-aware sidebar (Milestone 7)
-
-> **Planned — Milestone 7. Not implemented yet;** this is the agreed design, written first (docs-first).
+## Role-aware sidebar (Milestone 7)
 
 - **Sidebar from the API.** Built from `GET /me/menus?console=ADMIN`, in `sort_order`, as plain text links:
   **Users**, **Roles**, **Menus**, **Protocols** for a `SUPER_ADMIN`; only the entries a user's roles carry for
-  anyone else. This replaces the static three-link sidebar (F-03).
+  anyone else. This replaced the static three-link sidebar (F-03). A tab the API returns that this build has no
+  screen for is not shown.
 - **Landing.** After sign-in a user lands on their first allowed tab.
 - **Route guards.** A URL the user has no tab for redirects to their first allowed tab. A user with no admin tabs
-  at all sees a plain "You don't have access to any part of the admin console" screen (still with Sign out).
-- **Menu call fails.** The sidebar area shows an error with a **Retry** — never a flash of the wrong sidebar.
+  at all — or whose menus call answers `403` — sees a plain "No access to the admin console" screen (with its
+  own Sign out button).
+- **Menu call fails.** The main area shows an error with a **Retry** and the sidebar stays empty — never a flash
+  of the wrong sidebar. The menus are also re-checked when the browser tab regains focus, so a tab another admin
+  just added or removed shows up without a manual reload.
 - A link a user can't use is not shown; the server still refuses the call, so hiding is convenience, not security.
 - **Role Detail → Menus tab** groups the catalog under **Insights** and **Admin console**:
 
@@ -236,7 +239,8 @@ Insights
 ```
 
   On the **`SUPER_ADMIN`** role all four admin entries are ticked and **locked** (cannot be removed). The server
-  enforces both rules (`409`); the greying-out just avoids offering what would be refused.
+  enforces both rules (`409`, shown inline if it ever refuses a save); the greying-out just avoids offering what
+  would be refused. A locked tab is always sent ticked, even when only an insights menu changed.
 - `/protocols` is a placeholder until Milestone 8.
 
 ## `/protocols` — Protocols (planned — Milestone 8)
@@ -271,5 +275,5 @@ Insights
   only if the role also has gateway permission rows for them. `SUPER_ADMIN` has both. Any other role needs a
   `SUPER_ADMIN` to tick the tab and add four rows on its Permissions tab (`GET /admin/v1/me`,
   `GET /admin/v1/me/menus`, `GET` and `POST /v1/protocol/protocol-definitions/**`) — see
-  [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-planned-milestones-78--role-aware-console-and-protocol-management).
+  [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-milestones-78--role-aware-console-and-protocol-management).
 - Who uploaded or retired what is **not recorded** in this release (an open question — §9.10 there).

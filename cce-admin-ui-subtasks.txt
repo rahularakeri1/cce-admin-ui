@@ -489,7 +489,7 @@ Agreed 2026-11-25/26 (replaces an earlier draft that went through an admin-servi
 proxy). See cce-admin-module-subtasks.txt for the decisions, open questions and
 integrated exit checks. Update docs/ in the same PR. U0-U13 above are unchanged.
 
-SUB-TASK U14: Role-Aware Shell                                       (~4 hours)
+SUB-TASK U14: Role-Aware Shell                                       (~4 hours)  [DONE - Milestone 7]
   1. Sidebar from GET /me/menus?console=ADMIN (hooks/useAdminMenus.ts) as plain text
      links, replacing the static list (reverses F-03 — update architecture-overview.md
      and pages-and-wireframes.md in the same PR).
