@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useParams } from "react-router-dom";
 import { LockClosedIcon } from "@heroicons/react/24/outline";
 import { ApiError } from "../api/client";
 import { InlineForbidden } from "../components/InlineForbidden";
+import { SUPER_ADMIN_ONLY_MENU_KEYS, type Menu } from "../api/menus";
 import { useMenuCatalog, useRoleMenuIds, useSaveRoleMenus } from "../hooks/useRoleMenus";
 import { useRole } from "../hooks/useRoles";
 
@@ -59,8 +60,27 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>) {
   return a.size === b.size && [...a].every((x) => b.has(x));
 }
 
+type MenuState = "editable" | "locked" | "superAdminOnly";
+
+/**
+ * What the server would do with this checkbox (PUT /roles/:id/menus): SUPER_ADMIN must keep every admin
+ * tab (locked, ticked); the Users, Roles and Menus tabs belong to SUPER_ADMIN alone (greyed out on any
+ * other role); everything else — insights menus and the Protocols tab — is open to every role.
+ */
+function menuState(menu: Menu, roleName: string): MenuState {
+  if (menu.console !== "ADMIN") return "editable";
+  if (roleName === "SUPER_ADMIN") return "locked";
+  return SUPER_ADMIN_ONLY_MENU_KEYS.has(menu.menuKey) ? "superAdminOnly" : "editable";
+}
+
+const GROUPS: { console: Menu["console"]; title: string }[] = [
+  { console: "INSIGHTS", title: "Insights" },
+  { console: "ADMIN", title: "Admin console" },
+];
+
 export function RoleMenusTab() {
   const { id = "" } = useParams();
+  const { data: role } = useRole(id);
   const catalog = useMenuCatalog();
   const saved = useRoleMenuIds(id);
   const save = useSaveRoleMenus(id);
@@ -77,9 +97,13 @@ export function RoleMenusTab() {
   const selected = draft ?? serverSet;
   const changed = draft !== null && !sameSet(draft, serverSet);
   const saveError = save.error instanceof ApiError ? save.error : null;
+  const roleName = role?.name ?? "";
+  // A locked tab is always sent ticked, whatever the last response said.
+  const locked = catalog.data.filter((m) => menuState(m, roleName) === "locked").map((m) => m.id);
+  const effective = new Set([...selected, ...locked]);
 
   function toggle(menuId: string) {
-    const next = new Set(selected);
+    const next = new Set(effective);
     if (next.has(menuId)) next.delete(menuId);
     else next.add(menuId);
     setDraft(next);
@@ -87,31 +111,58 @@ export function RoleMenusTab() {
 
   function onSave() {
     // Always the COMPLETE set, never a partial diff.
-    save.mutate([...selected].sort(), { onSuccess: () => setDraft(null) });
+    save.mutate([...effective].sort(), { onSuccess: () => setDraft(null) });
   }
 
   return (
     <div>
       <p className="mb-3 text-sm text-gray-600">
-        Menus this role can see in a console that uses the menu list. Saving replaces the whole set.
+        The tabs this role shows in each console. Saving replaces the whole set. Users, Roles and Menus are
+        Super Admin only, so they can't be given to another role.
       </p>
-      <ul className="space-y-2 rounded-md border border-gray-200 bg-white p-4">
-        {catalog.data.map((menu) => (
-          <li key={menu.id}>
-            <label className="flex items-center gap-3 text-sm text-gray-800">
-              <input
-                type="checkbox"
-                checked={selected.has(menu.id)}
-                onChange={() => toggle(menu.id)}
-                disabled={save.isPending}
-              />
-              <span>{menu.label}</span>
-              <span className="font-mono text-xs text-gray-400">{menu.path}</span>
-              {!menu.isActive && <span className="text-xs text-amber-700">(inactive)</span>}
-            </label>
-          </li>
-        ))}
-      </ul>
+      <div className="space-y-4">
+        {GROUPS.map((group) => {
+          const items = catalog.data.filter((m) => m.console === group.console);
+          if (items.length === 0) return null;
+          return (
+            <section key={group.console} aria-labelledby={`menus-${group.console}`} className="rounded-md border border-gray-200 bg-white p-4">
+              <h2 id={`menus-${group.console}`} className="mb-2 text-sm font-semibold text-gray-900">
+                {group.title}
+              </h2>
+              <ul className="space-y-2">
+                {items.map((menu) => {
+                  const state = menuState(menu, roleName);
+                  const disabled = save.isPending || state !== "editable";
+                  return (
+                    <li key={menu.id}>
+                      <label
+                        className={`flex items-center gap-3 text-sm ${state === "superAdminOnly" ? "text-gray-400" : "text-gray-800"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={effective.has(menu.id)}
+                          onChange={() => toggle(menu.id)}
+                          disabled={disabled}
+                        />
+                        <span>{menu.label}</span>
+                        <span className="font-mono text-xs text-gray-400">{menu.path}</span>
+                        {!menu.isActive && <span className="text-xs text-amber-700">(inactive)</span>}
+                        {state === "locked" && (
+                          <span className="flex items-center gap-1 text-xs text-gray-500">
+                            <LockClosedIcon className="h-4 w-4" aria-hidden="true" />
+                            Always on for Super Admin
+                          </span>
+                        )}
+                        {state === "superAdminOnly" && <span className="text-xs">Super Admin only</span>}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
 
       {saveError?.status === 403 && <div className="mt-3"><InlineForbidden message="You can't change this role's menus." /></div>}
       {saveError && saveError.status !== 403 && (

@@ -56,7 +56,7 @@ server: {
 3. MSW handlers mirroring
    [cce-admin-service/docs/api-reference.md](../../cce-admin-service/docs/api-reference.md), including
    a toggleable `KEYCLOAK_SYNC_FAILED` response.
-4. App shell: static sidebar + header from `GET /me` (F-03). *(Milestone 7 replaces the static sidebar with one built from `GET /me/menus?console=ADMIN`; Milestone 8 adds a dev-server proxy so `/v1/protocol` reaches the local gateway, with the protocol service on port 8091.)*
+4. App shell: sidebar from `GET /me/menus?console=ADMIN` + header from `GET /me` (Milestone 7; a role sees only the tabs it carries). *(Milestone 8 adds a dev-server proxy so `/v1/protocol` reaches the local gateway, with the protocol service on port 8091.)*
 5. Screens in PRD milestone order: Roles (F2) → Permissions tab (F3) → Users (F4) → Menus (F5) — see
    [cce-admin-ui-subtasks.txt] for the exact dependency-ordered breakdown.
 

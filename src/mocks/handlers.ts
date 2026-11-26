@@ -32,10 +32,17 @@ export interface MockUser {
   createdAt: string;
 }
 
+export const ADMIN_MENU_KEYS = ["admin-users", "admin-roles", "admin-menus", "admin-protocols"];
+
+// Insights menus first, then the four admin console tabs — the order GET /menus answers in.
 const seedMenus = () => [
-  { id: "m-1", menuKey: "dashboard", label: "Dashboard", path: "/", icon: "ChartBarIcon", sortOrder: 1, isActive: true },
-  { id: "m-2", menuKey: "facilities", label: "Facilities", path: "/facilities", icon: "BuildingOffice2Icon", sortOrder: 2, isActive: true },
-  { id: "m-3", menuKey: "compliance", label: "Compliance", path: "/compliance", icon: "ClipboardDocumentCheckIcon", sortOrder: 3, isActive: true },
+  { id: "m-1", menuKey: "dashboard", label: "Dashboard", path: "/", icon: "ChartBarIcon", console: "INSIGHTS", sortOrder: 1, isActive: true },
+  { id: "m-2", menuKey: "facilities", label: "Facilities", path: "/facilities", icon: "BuildingOffice2Icon", console: "INSIGHTS", sortOrder: 2, isActive: true },
+  { id: "m-3", menuKey: "compliance", label: "Compliance", path: "/compliance", icon: "ClipboardDocumentCheckIcon", console: "INSIGHTS", sortOrder: 3, isActive: true },
+  { id: "m-a1", menuKey: "admin-users", label: "Users", path: "/users", icon: "UsersIcon", console: "ADMIN", sortOrder: 1, isActive: true },
+  { id: "m-a2", menuKey: "admin-roles", label: "Roles", path: "/roles", icon: "ShieldCheckIcon", console: "ADMIN", sortOrder: 2, isActive: true },
+  { id: "m-a3", menuKey: "admin-menus", label: "Menus", path: "/menus", icon: "Bars3Icon", console: "ADMIN", sortOrder: 3, isActive: true },
+  { id: "m-a4", menuKey: "admin-protocols", label: "Protocols", path: "/protocols", icon: "DocumentTextIcon", console: "ADMIN", sortOrder: 4, isActive: true },
 ];
 
 const seedRoles = () => [
@@ -57,6 +64,9 @@ export const mockDb = {
   menus: seedMenus(),
   roles: seedRoles(),
   roleMenus: {} as Record<string, string[]>,
+  // The admin tabs (menu keys) the signed-in user's roles carry; the default mock user is a SUPER_ADMIN.
+  myAdminMenuKeys: [...ADMIN_MENU_KEYS],
+  meMenusCalls: [] as string[],
   users: [] as MockUser[],
   unsyncedRoleIds: new Set<string>(),
   // The next call to any /users/:id action answers with this error, once — lets a test stage 409s/502s.
@@ -82,6 +92,8 @@ export function resetMockDb() {
   mockDb.menus = seedMenus();
   mockDb.roles = seedRoles();
   mockDb.roleMenus = {};
+  mockDb.myAdminMenuKeys = [...ADMIN_MENU_KEYS];
+  mockDb.meMenusCalls = [];
   mockDb.users = [];
   mockDb.unsyncedRoleIds = new Set();
   mockDb.failNext = null;
@@ -117,7 +129,18 @@ export const handlers = [
     }),
   ),
 
-  http.get(`${BASE}/me/menus`, () => HttpResponse.json({ data: mockDb.menus })),
+  // Mirrors GET /me/menus?console= (default INSIGHTS); the admin tabs are whatever mockDb.myAdminMenuKeys says.
+  http.get(`${BASE}/me/menus`, ({ request }) => {
+    const console = new URL(request.url).searchParams.get("console") ?? "INSIGHTS";
+    mockDb.meMenusCalls.push(console);
+    const failure = takeFailure();
+    if (failure) return failure;
+    const menus = mockDb.menus
+      .filter((m) => m.console === console)
+      .filter((m) => console !== "ADMIN" || mockDb.myAdminMenuKeys.includes(m.menuKey))
+      .map(({ id, label, path, icon }) => ({ id, label, path, icon }));
+    return HttpResponse.json({ data: menus });
+  }),
 
   // Mirrors GET /users: filters + server-side paging, newest first.
   http.get(`${BASE}/users`, ({ request }) => {
@@ -340,6 +363,23 @@ export const handlers = [
   http.put(`${BASE}/roles/:id/menus`, async ({ params, request }) => {
     const body = (await request.json()) as { menuIds: string[] };
     mockDb.lastMenusPut = { roleId: params.id as string, body };
+    // The server's two tab rules (cce-admin-service RoleService.enforceAdminTabRules).
+    const role = mockDb.roles.find((r) => r.id === params.id);
+    const wanted = mockDb.menus.filter((m) => body.menuIds.includes(m.id));
+    if (role?.name === "SUPER_ADMIN") {
+      const missing = mockDb.menus.filter((m) => m.console === "ADMIN" && !body.menuIds.includes(m.id));
+      if (missing.length > 0) {
+        return HttpResponse.json(
+          { error: { code: "ADMIN_MENU_REQUIRED", message: "SUPER_ADMIN must keep every admin console tab" } },
+          { status: 409 },
+        );
+      }
+    } else if (wanted.some((m) => ["admin-users", "admin-roles", "admin-menus"].includes(m.menuKey))) {
+      return HttpResponse.json(
+        { error: { code: "ADMIN_MENU_SUPER_ADMIN_ONLY", message: "Those tabs can only be assigned to SUPER_ADMIN" } },
+        { status: 409 },
+      );
+    }
     mockDb.roleMenus[params.id as string] = [...body.menuIds];
     return HttpResponse.json({ data: { menuIds: body.menuIds } });
   }),

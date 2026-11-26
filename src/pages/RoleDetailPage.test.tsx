@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -110,5 +110,89 @@ describe("RoleDetailPage — Menus tab", () => {
   it("says so when the role does not exist", async () => {
     renderAt("/roles/r-404");
     expect(await screen.findByText("Role not found.")).toBeInTheDocument();
+  });
+});
+
+describe("RoleDetailPage — Menus tab, admin tab rules (Milestone 7)", () => {
+  it("groups the catalog under Insights and Admin console", async () => {
+    renderAt("/roles/r-2");
+    await screen.findByLabelText(/Dashboard/);
+
+    const insights = within(screen.getByRole("region", { name: "Insights" }));
+    const admin = within(screen.getByRole("region", { name: "Admin console" }));
+    expect(insights.getByLabelText(/Dashboard/)).toBeInTheDocument();
+    expect(insights.queryByLabelText(/Users/)).not.toBeInTheDocument();
+    expect(admin.getAllByRole("checkbox")).toHaveLength(4);
+  });
+
+  it("greys out Users, Roles and Menus on a custom role, but leaves Protocols tickable", async () => {
+    renderAt("/roles/r-2");
+    await screen.findByLabelText(/Dashboard/);
+
+    for (const label of [/^Users/, /^Roles/, /^Menus/]) {
+      expect(screen.getByLabelText(label)).toBeDisabled();
+      expect(screen.getByLabelText(label)).not.toBeChecked();
+    }
+    expect(screen.getAllByText("Super Admin only")).toHaveLength(3);
+    expect(screen.getByLabelText(/Protocols/)).toBeEnabled();
+  });
+
+  it("lets a custom role take the Protocols tab and sends it in the complete set", async () => {
+    mockDb.roleMenus["r-2"] = ["m-1"];
+    renderAt("/roles/r-2");
+    const user = userEvent.setup();
+    await screen.findByLabelText(/Dashboard/);
+
+    await user.click(screen.getByLabelText(/Protocols/));
+    await user.click(saveButton());
+
+    await waitFor(() => expect(mockDb.lastMenusPut?.body.menuIds).toEqual(["m-1", "m-a4"]));
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it("shows all four admin tabs ticked and locked on SUPER_ADMIN, with the insights menus still editable", async () => {
+    mockDb.roleMenus["r-1"] = ["m-1", "m-a1", "m-a2", "m-a3", "m-a4"];
+    renderAt("/roles/r-1");
+    await screen.findByLabelText(/Dashboard/);
+
+    const admin = within(screen.getByRole("region", { name: "Admin console" }));
+    for (const box of admin.getAllByRole("checkbox")) {
+      expect(box).toBeChecked();
+      expect(box).toBeDisabled();
+    }
+    expect(screen.getAllByText("Always on for Super Admin")).toHaveLength(4);
+    expect(screen.getByLabelText(/Dashboard/)).toBeEnabled();
+  });
+
+  it("always sends SUPER_ADMIN's four admin tabs when its insights menus change", async () => {
+    mockDb.roleMenus["r-1"] = ["m-1", "m-a1", "m-a2", "m-a3", "m-a4"];
+    renderAt("/roles/r-1");
+    const user = userEvent.setup();
+    await screen.findByLabelText(/Dashboard/);
+
+    await user.click(screen.getByLabelText(/Facilities/));
+    await user.click(saveButton());
+
+    await waitFor(() => expect(mockDb.lastMenusPut?.body.menuIds).toEqual(["m-1", "m-2", "m-a1", "m-a2", "m-a3", "m-a4"]));
+  });
+
+  it("shows the server's 409 inline if it refuses a save the UI let through", async () => {
+    mockDb.roleMenus["r-2"] = ["m-1"];
+    server.use(
+      http.put("*/admin/v1/roles/:id/menus", () =>
+        HttpResponse.json(
+          { error: { code: "ADMIN_MENU_SUPER_ADMIN_ONLY", message: "Users can only be assigned to SUPER_ADMIN" } },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderAt("/roles/r-2");
+    const user = userEvent.setup();
+    await screen.findByLabelText(/Dashboard/);
+
+    await user.click(screen.getByLabelText(/Facilities/));
+    await user.click(saveButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/can only be assigned to SUPER_ADMIN/);
   });
 });
