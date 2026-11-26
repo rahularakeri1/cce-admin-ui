@@ -504,14 +504,15 @@ SUB-TASK U14: Role-Aware Shell                                       (~4 hours) 
   redirected from /users; SUPER_ADMIN sees all four; the greyed and locked states are
   covered by tests.
 
-SUB-TASK U15: Protocols List, Detail and Retire                      (~3 hours)
+SUB-TASK U15: Protocols List, Detail and Retire                      (~3 hours)  [DONE - Milestone 8]
   1. pages/ProtocolsListPage.tsx + hooks/useProtocols.ts calling
      /v1/protocol/protocol-definitions through the gateway (dev-server proxy
      /v1/protocol -> gateway 8090): server-paged list.
   2. Detail view with read-only formatted JSON + Copy; Retire with an in-place confirm.
-  ACCEPTANCE: retired status shows after a real refetch; 403, 404 and 502/503 show inline.
+  ACCEPTANCE: retired status shows after a real refetch; 403, 404 and any 5xx (the gateway answers a down
+  protocol service with a bare 500) show inline.
 
-SUB-TASK U16: Protocol Upload                                        (~3 hours)
+SUB-TASK U16: Protocol Upload                                        (~3 hours)  [DONE - Milestone 8]
   1. File picker or paste; browser-side checks (valid JSON, resourceType PlanDefinition,
      url + version present) before any request; a preview (url, version, number of
      actions).

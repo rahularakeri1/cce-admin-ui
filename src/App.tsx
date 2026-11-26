@@ -11,6 +11,9 @@ import UserDetailPage from "./pages/UserDetailPage";
 import UsersListPage from "./pages/UsersListPage";
 import RoleDetailPage, { RoleMenusTab } from "./pages/RoleDetailPage";
 import RolePermissionsTab from "./pages/RolePermissionsTab";
+import ProtocolsListPage from "./pages/ProtocolsListPage";
+import ProtocolDetailPage from "./pages/ProtocolDetailPage";
+import ProtocolUploadPage from "./pages/ProtocolUploadPage";
 
 // The screens this build knows how to draw. The sidebar is NOT this list: it comes from
 // GET /me/menus?console=ADMIN (the user's own roles), and a tab the API returns that isn't drawn here
@@ -85,10 +88,11 @@ function AdminRoutes({ menus }: { menus: MyMenu[] }) {
         <Route path="/menus" element={<Placeholder title="Menus" note="Screen not built yet — a later milestone." />} />
       )}
       {has("/protocols") && (
-        <Route
-          path="/protocols"
-          element={<Placeholder title="Protocols" note="Protocol management is not built yet — the next milestone." />}
-        />
+        <>
+          <Route path="/protocols" element={<ProtocolsListPage />} />
+          <Route path="/protocols/new" element={<ProtocolUploadPage />} />
+          <Route path="/protocols/:id" element={<ProtocolDetailPage />} />
+        </>
       )}
       {/* Anything the user may not open (and "/") lands on their first allowed tab, never on a forbidden one. */}
       <Route path="*" element={<Navigate to={menus[0].path} replace />} />

@@ -243,9 +243,7 @@ Insights
   would be refused. A locked tab is always sent ticked, even when only an insights menu changed.
 - `/protocols` is a placeholder until Milestone 8.
 
-## `/protocols` — Protocols (planned — Milestone 8)
-
-> **Planned — Milestone 8. Not implemented yet;** this is the agreed design, written first (docs-first).
+## `/protocols` — Protocols (Milestone 8)
 
 ```
 ┌─ Protocols ─────────────────────────────────────────── [+ Upload protocol] ─┐
@@ -261,16 +259,22 @@ Insights
   server forwards `/v1/protocol` to the gateway (port 8090), which routes to the protocol service (8091).
 - **List:** URL, version, status, loaded-at; server-paged (`page`, `size`, `sort`), newest first. Each row links
   to the detail view.
-- **Detail:** the stored definition as read-only formatted JSON with a Copy button, plus **Retire** (explicit
-  in-place confirm — a retired protocol stops being matched). No delete in v1.
-- **Upload:** pick a `.json` file or paste. Checked **in the browser before anything is sent**: valid JSON,
+- **Detail** (`/protocols/:id`): url, version, status, loaded-at and canonical, the stored definition as read-only
+  formatted JSON with a Copy button (it says so if the browser refuses), plus **Retire**. Retire asks first, in
+  place: *it stops matching new events straight away; patients already enrolled are not affected; it can't be
+  undone from this console.* A retired protocol shows RETIRED (from a real refetch) and offers no Retire. No delete
+  in v1.
+- **Upload** (`/protocols/new`): pick a `.json` file or paste (a file over 5 MB is refused unread). Checked **in the browser before anything is sent**: valid JSON,
   `resourceType` is `PlanDefinition`, `url` and `version` present. A **preview** shows url, version and the
   number of actions; **Upload** sends `{ "planDefinitionJson": "<the resource as a string>" }`. The protocol
   service's own validation *warnings* are only logged by it, so the preview can't show them.
-- **Server outcomes inline:** a rejection shows the protocol service's own reason; the same `(url, version)`
-  twice is explained ("this version is already loaded — change the version or retire the old one");
-  a down protocol service shows "protocol service unavailable — nothing was uploaded"; a `403` shows
-  "your role isn't allowed to do this". No optimistic UI: the list refetches after an upload or retire.
+- **Server outcomes inline:** decided by HTTP status. A `400`/`422` rejection shows the protocol service's own
+  reason; the same `(url, version)` twice — which the service answers with **`400`**, not `409` — is explained
+  ("this version is already loaded — change the version in the file, or retire the old one"); **any `5xx` or a
+  network failure** shows "Protocol service unavailable — nothing was uploaded / changed" (with a Retry on the
+  list and detail), because the gateway answers a down protocol service with a bare `500`, not `502`/`503`;
+  a `403` shows "your role isn't allowed to do this". After a successful upload the list shows
+  "Uploaded <url> <version>". No optimistic UI: the list refetches after an upload or retire.
 - **Who sees and who may use it.** The **Protocols tab** appears for a role that has it ticked; the **calls** work
   only if the role also has gateway permission rows for them. `SUPER_ADMIN` has both. Any other role needs a
   `SUPER_ADMIN` to tick the tab and add four rows on its Permissions tab (`GET /admin/v1/me`,

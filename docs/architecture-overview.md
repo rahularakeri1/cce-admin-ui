@@ -71,7 +71,10 @@ main.tsx (initAuth() runs and resolves BEFORE render — F-01)
     ├── /roles/:id       → RoleDetailPage
     │   ├── Menus tab       (F-13)
     │   └── Permissions tab (F-14)
-    └── /menus           → MenusCatalogPage      (F-15)
+    ├── /menus           → MenusCatalogPage      (F-15)
+    ├── /protocols       → ProtocolsListPage      (Milestone 8)
+    ├── /protocols/new   → ProtocolUploadPage     (Milestone 8)
+    └── /protocols/:id   → ProtocolDetailPage     (Milestone 8: view, retire)
 ```
 
 ### Why the sidebar is driven by the API (Milestone 7 — this reversed the earlier static sidebar, F-03)
@@ -103,7 +106,7 @@ remains the answer for an action a user reaches but may not perform.
 | `pages/` | Route-level components | Compose `hooks/` + `components/`; never call `api/` directly (F-01–F-06) |
 | `components/` | Visual rendering | Stateless where possible |
 | `hooks/` | TanStack Query wrappers | One hook per API endpoint group; return `{ data, isLoading, error }` |
-| `api/` | Typed `fetch` wrapper (`client.ts`) + one module per resource | No React dependencies; unwraps the `{data, pagination?}` / `{error:{code,message}}` envelope into `ApiError` |
+| `api/` | Typed `fetch` wrapper (`client.ts`) + one module per resource | No React dependencies; unwraps the `{data, pagination?}` / `{error:{code,message}}` envelope into `ApiError`. `protocolClient.ts` is the second wrapper (Milestone 8): `cce-protocol-service` is called **through the gateway** at `/v1/protocol`, with a different, un-enveloped body, so it maps the status (not the body) into `ApiError` |
 | `auth/` | `keycloak-js` init, token refresh, context | `initAuth()` blocks render (F-01) |
 | `schemas/` | Zod schemas | Mirror backend validation (UPPER_SNAKE_CASE role names, email format, required fields) so a client-side error surfaces before a round trip, but server errors by `error.code` still render (milestone note) |
 | `context/` | Current-user context from `GET /me` | Populates the header; the sidebar comes from `hooks/useAdminMenus.ts` (`GET /me/menus?console=ADMIN`, Milestone 7) |
@@ -212,3 +215,13 @@ actually *do* on a screen they reach is still governed by `api_permissions`, sur
 
 Docker build-time `VITE_*` args (same pattern as `cce-insights-ui`) — see
 [deployment-guide.md](deployment-guide.md). Each environment needs its own image build.
+
+### Protocols (Milestone 8)
+
+`/protocols` calls `cce-protocol-service` **directly through the gateway** with the user's own token — there is no
+`cce-admin-service` endpoint in between, so the gateway's route and the role's permission rows are the only gate
+(see [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-milestones-78--role-aware-console-and-protocol-management)).
+`api/protocolClient.ts` therefore decides by HTTP status: three different things can answer (the protocol
+service, the gateway's own `403`, and the gateway's bare `500` when the protocol service is down), and
+`lib/protocolErrors.ts` turns them into one plain sentence each (`forbidden`, `unavailable`, `duplicate`,
+`rejected`, …). The upload's pre-flight checks live in `lib/planDefinition.ts` and run before any request.
