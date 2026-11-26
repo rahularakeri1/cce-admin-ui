@@ -47,7 +47,7 @@ export default function ProtocolsListPage() {
           <p className="font-medium">
             {failure.kind === "forbidden" ? "Your role isn't allowed to view protocols." : failure.message}
           </p>
-          {failure.kind !== "forbidden" && failure.kind !== "expired" && (
+          {(failure.kind === "unavailable" || failure.kind === "unknown") && (
             <button
               type="button"
               onClick={() => void refetch()}

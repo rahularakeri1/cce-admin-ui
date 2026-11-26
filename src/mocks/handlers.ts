@@ -171,6 +171,8 @@ function takeProtocolFailure() {
 
 /** What the gateway actually answers in the two cases it answers itself (checked live). */
 export const GATEWAY_403 = { status: 403, body: { error: "Forbidden", message: "Access denied: Insufficient permissions", status: 403 } };
+/** The gateway's CORS refusal: an EMPTY 403 (checked live), before any permission check. */
+export const GATEWAY_CORS_403 = { status: 403, body: null };
 export const GATEWAY_DOWN_500 = {
   status: 500,
   body: { timestamp: "2026-11-26T11:48:46Z", path: "/v1/protocol/protocol-definitions", status: 500, error: "Internal Server Error", requestId: "r-1" },

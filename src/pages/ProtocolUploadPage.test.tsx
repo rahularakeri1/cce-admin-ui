@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
-import { GATEWAY_403, GATEWAY_DOWN_500, mockDb } from "../mocks/handlers";
+import { GATEWAY_403, GATEWAY_CORS_403, GATEWAY_DOWN_500, mockDb } from "../mocks/handlers";
 import { planDefinitionText, renderProtocols } from "../test-utils/protocols";
 
 const uploadButton = () => screen.getByRole("button", { name: /^(Upload|Uploading…)$/ });
@@ -146,6 +146,15 @@ describe("ProtocolUploadPage — upload", () => {
     await pasteAndUpload();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Action ids must be unique: a1");
+  });
+
+  it("an EMPTY 403 (the gateway's CORS refusal) is not blamed on the user's role", async () => {
+    mockDb.protocolFailNext = GATEWAY_CORS_403;
+    await pasteAndUpload();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/allowed origins/);
+    expect(alert).not.toHaveTextContent(/role isn't allowed/);
   });
 
   it("a gateway 403 says the role isn't allowed to do this", async () => {

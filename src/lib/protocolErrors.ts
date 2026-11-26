@@ -2,6 +2,7 @@ import { ApiError } from "../api/client";
 
 export type ProtocolFailureKind =
   | "forbidden" // gateway 403: the role has no permission row for this call
+  | "blocked" // an EMPTY 403: refused by the gateway's CORS check before any permission check
   | "unavailable" // protocol service down (gateway 500), any 5xx, or no network
   | "duplicate" // same (url, version) already loaded
   | "notFound"
@@ -31,6 +32,13 @@ export function classifyProtocolError(error: unknown, action: ProtocolAction): P
   if (!(error instanceof ApiError)) return { kind: "unknown", message: "Something went wrong — try again." };
   const { status, message } = error;
 
+  if (status === 403 && error.code === "NO_BODY") {
+    return {
+      kind: "blocked",
+      message:
+        "The gateway blocked this request before it checked your role — this console's address is probably missing from the gateway's allowed origins. Tell an administrator.",
+    };
+  }
   if (status === 403) return { kind: "forbidden", message: "Your role isn't allowed to do this." };
   if (status === 401) return { kind: "expired", message: "Your session has expired — reload the page to sign in again." };
   if (status === 0 || status >= 500) {

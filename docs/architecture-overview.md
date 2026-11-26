@@ -222,6 +222,7 @@ Docker build-time `VITE_*` args (same pattern as `cce-insights-ui`) — see
 `cce-admin-service` endpoint in between, so the gateway's route and the role's permission rows are the only gate
 (see [cce-admin-service architecture-overview.md §9.9](../../cce-admin-service/docs/architecture-overview.md#99-milestones-78--role-aware-console-and-protocol-management)).
 `api/protocolClient.ts` therefore decides by HTTP status: three different things can answer (the protocol
-service, the gateway's own `403`, and the gateway's bare `500` when the protocol service is down), and
+service, the gateway's permission `403`, the gateway's *empty* `403` for a CORS-refused origin, and the gateway's bare
+`500` when the protocol service is down), and
 `lib/protocolErrors.ts` turns them into one plain sentence each (`forbidden`, `unavailable`, `duplicate`,
 `rejected`, …). The upload's pre-flight checks live in `lib/planDefinition.ts` and run before any request.

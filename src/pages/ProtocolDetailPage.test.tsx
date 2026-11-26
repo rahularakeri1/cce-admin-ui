@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { GATEWAY_403, GATEWAY_DOWN_500, mockDb } from "../mocks/handlers";
+import { GATEWAY_403, GATEWAY_CORS_403, GATEWAY_DOWN_500, mockDb } from "../mocks/handlers";
 import { renderProtocols } from "../test-utils/protocols";
 
 const retireButton = () => screen.queryByRole("button", { name: "Retire" });
@@ -104,6 +104,21 @@ describe("ProtocolDetailPage", () => {
       await user.click(screen.getByRole("button", { name: "Retire protocol" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Your role isn't allowed to do this.");
+      expect(mockDb.protocols[0].status).toBe("ACTIVE");
+    });
+
+    it("an EMPTY 403 on retire (the gateway's CORS refusal) says so, not 'your role'", async () => {
+      renderProtocols("/protocols/p-1");
+      const user = userEvent.setup();
+      await screen.findByLabelText("Protocol definition JSON");
+
+      await user.click(retireButton()!);
+      mockDb.protocolFailNext = GATEWAY_CORS_403;
+      await user.click(screen.getByRole("button", { name: "Retire protocol" }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(/allowed origins/);
+      expect(alert).not.toHaveTextContent(/role isn't allowed/);
       expect(mockDb.protocols[0].status).toBe("ACTIVE");
     });
 

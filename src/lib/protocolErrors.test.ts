@@ -9,6 +9,15 @@ describe("classifyProtocolError — the status decides, the body only supplies w
     expect(classifyProtocolError(err(403), "upload")).toEqual({ kind: "forbidden", message: "Your role isn't allowed to do this." });
   });
 
+  it("an EMPTY 403 (the gateway's CORS refusal) is told apart from a permission 403 and points at the cause", () => {
+    const f = classifyProtocolError(new ApiError(403, "NO_BODY", "Forbidden"), "upload");
+    expect(f.kind).toBe("blocked");
+    expect(f.message).toMatch(/allowed origins.*administrator/);
+    expect(f.message).not.toMatch(/role isn't allowed/);
+    // a 403 WITH the gateway's JSON body is still a permission refusal
+    expect(classifyProtocolError(new ApiError(403, "Forbidden", "Access denied: Insufficient permissions"), "upload").kind).toBe("forbidden");
+  });
+
   it("any 5xx and a network failure (status 0) -> unavailable, and says whether anything changed", () => {
     for (const status of [500, 502, 503, 504, 0]) {
       expect(classifyProtocolError(err(status), "load").kind).toBe("unavailable");

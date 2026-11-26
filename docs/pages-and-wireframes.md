@@ -273,7 +273,9 @@ Insights
   ("this version is already loaded — change the version in the file, or retire the old one"); **any `5xx` or a
   network failure** shows "Protocol service unavailable — nothing was uploaded / changed" (with a Retry on the
   list and detail), because the gateway answers a down protocol service with a bare `500`, not `502`/`503`;
-  a `403` shows "your role isn't allowed to do this". After a successful upload the list shows
+  a `403` with the gateway's JSON body shows "your role isn't allowed to do this", but an **empty** `403` — the
+  gateway's CORS refusal, which hits upload and retire while list and detail still work — says the gateway blocked
+  the request and the console's address is probably missing from its allowed origins, so it is not blamed on the role. After a successful upload the list shows
   "Uploaded <url> <version>". No optimistic UI: the list refetches after an upload or retire.
 - **Who sees and who may use it.** The **Protocols tab** appears for a role that has it ticked; the **calls** work
   only if the role also has gateway permission rows for them. `SUPER_ADMIN` has both. Any other role needs a
