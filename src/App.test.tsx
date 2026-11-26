@@ -99,6 +99,27 @@ describe("App shell — role-aware sidebar", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
+  it("Retry also reloads the profile, so the header's error doesn't outlive an outage", async () => {
+    mockDb.failNext = { status: 500, code: "INTERNAL", message: "boom" };
+    let meCalls = 0;
+    server.use(
+      http.get("*/admin/v1/me", () => {
+        meCalls += 1;
+        return meCalls === 1
+          ? HttpResponse.json({ error: { code: "INTERNAL", message: "down" } }, { status: 500 })
+          : HttpResponse.json({ data: { id: "u-1", username: "jdoe", roles: ["SUPER_ADMIN"], facilityScope: null } });
+      }),
+    );
+    renderApp();
+    expect(await screen.findByText(/Could not load your profile/)).toBeInTheDocument();
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("jdoe")).toBeInTheDocument();
+    expect(screen.queryByText(/Could not load your profile/)).not.toBeInTheDocument();
+    expect(await within(sidebar()).findByRole("link", { name: "Users" })).toBeInTheDocument();
+  });
+
   it("does not show a tab the API returns but this build can't draw", async () => {
     mockDb.menus.push({
       id: "m-x", menuKey: "admin-future", label: "Future", path: "/future", icon: "Icon", console: "ADMIN", sortOrder: 9, isActive: true,

@@ -97,7 +97,7 @@ function AdminRoutes({ menus }: { menus: MyMenu[] }) {
 }
 
 export default function App() {
-  const { data: me, isLoading, error } = useMe();
+  const { data: me, isLoading, error, refetch: refetchMe } = useMe();
   const menusQuery = useAdminMenus();
 
   // Only tabs this build can draw; the API's order (sort_order) is kept, so the first one is the landing page.
@@ -112,7 +112,17 @@ export default function App() {
     // 403 = this account has no local admin user / no role — an answer, not a failure: nothing to retry.
     body = <NoAccess />;
   } else {
-    body = <MenusError onRetry={() => void menusQuery.refetch()} retrying={menusQuery.isFetching} />;
+    // Retry reloads the profile too: both calls fail together when the service is down, and the header's
+    // "Could not load your profile" would otherwise outlive the outage.
+    body = (
+      <MenusError
+        onRetry={() => {
+          void menusQuery.refetch();
+          void refetchMe();
+        }}
+        retrying={menusQuery.isFetching}
+      />
+    );
   }
 
   return (

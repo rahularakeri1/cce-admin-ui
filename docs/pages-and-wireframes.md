@@ -222,8 +222,8 @@ needs an actual design pass rather than guessing at layout.
 - **Route guards.** A URL the user has no tab for redirects to their first allowed tab. A user with no admin tabs
   at all — or whose menus call answers `403` — sees a plain "No access to the admin console" screen (with its
   own Sign out button).
-- **Menu call fails.** The main area shows an error with a **Retry** and the sidebar stays empty — never a flash
-  of the wrong sidebar. The menus are also re-checked when the browser tab regains focus, so a tab another admin
+- **Menu call fails.** The main area shows an error with a **Retry** (which reloads the profile in the header too)
+  and the sidebar stays empty — never a flash of the wrong sidebar. The menus are also re-checked when the browser tab regains focus, so a tab another admin
   just added or removed shows up without a manual reload.
 - A link a user can't use is not shown; the server still refuses the call, so hiding is convenience, not security.
 - **Role Detail → Menus tab** groups the catalog under **Insights** and **Admin console**:
