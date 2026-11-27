@@ -185,7 +185,6 @@ needs an actual design pass rather than guessing at layout.
 ## `/menus` — Menus Catalog (F-15, Milestone 9)
 
 > **Planned — docs first, not implemented yet.** The text below describes the target for these parts, which arrive in their own PRs; until each one merges, the screen does not have it:
-> - icons in the sidebar and the Menus table (Milestone 9c)
 > - the icon picker in the form (Milestone 9d)
 
 Manages the **catalog itself** — the list of sidebar entries and their order — not which roles get which entry (that is
@@ -245,7 +244,7 @@ calls.
   ADMIN_MENU_PROTECTED`), so calling the API directly doesn't get round it.
 - Any change refetches the catalog, every role's saved menus and **this console's own sidebar**, so renaming or
   re-arranging an admin tab shows in the sidebar at once.
-- **Where the icon is used.** From Milestone 9c this console draws it (sidebar, table, form). `cce-insights-ui` does **not** yet: its
+- **Where the icon is used.** This console draws it (sidebar, table, form). `cce-insights-ui` does **not** yet: its
   sidebar is a fixed list with its own icons and never reads `GET /me/menus`, so an icon saved here has no effect there
   until that UI is changed to fetch the menu list (not in the current plan).
 - Flat table, simplified from the PRD's NAV/DETAIL tree — see
@@ -268,7 +267,7 @@ calls.
 - **Sidebar from the API.** Built from `GET /me/menus?console=ADMIN`, in position order, as links with each entry's icon and label:
   **Users**, **Roles**, **Menus**, **Protocols** for a `SUPER_ADMIN`; only the entries a user's roles carry for
   anyone else. This replaced the static three-link sidebar (F-03). A tab the API returns that this build has no
-  screen for is not shown. *(Planned, Milestone 9c)* **Icons:** each link shows the icon saved on its menu entry (a Heroicons outline name, e.g.
+  screen for is not shown. **Icons:** each link shows the icon saved on its menu entry (a Heroicons outline name, e.g.
   `UsersIcon`) before its label. An entry with no icon, or a name this console can't draw, shows no icon there (the label
   is still aligned), and the link's accessible name is just its label.
 - **Landing.** After sign-in a user lands on their first allowed tab.
