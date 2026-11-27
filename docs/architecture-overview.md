@@ -89,7 +89,8 @@ main.tsx (initAuth() runs and resolves BEFORE render — F-01)
 
 `App.tsx` calls `useAdminMenus()` (`GET /me/menus?console=ADMIN`) and:
 
-- renders the returned tabs as the sidebar, in the API's order; a tab this build has no screen for is not shown;
+- renders the returned tabs as the sidebar, in the API's order, each with its saved icon (`lib/menuIcons.tsx`: a curated
+  set of Heroicons outline names; none or unknown shows no icon there); a tab this build has no screen for is not shown;
 - renders a route only for tabs the user has; any other URL (and `/`) redirects to the first allowed tab, which is
   the landing page;
 - shows a **"no access"** screen (with Sign out) when the user has no tab — or when the call answers `403`;

@@ -535,6 +535,19 @@ SUB-TASK U17: Arrange Menus (drag and drop)                          (~1.5 hours
   nothing; a stale list is refused with a plain message; renaming/arranging an admin tab updates
   the sidebar; the form has no sort field.
 
-  ADDENDUM TOTAL: ~10 hours (+ U17 ~1.5h added in Milestone 9)
+SUB-TASK U18: Show Menu Icons in the Admin Console                   (~2 hours)
+  Added during Milestone 9: the form saved an icon that nothing displayed. Docs:
+  docs/pages-and-wireframes.md (/menus and the role-aware sidebar).
+  1. lib/menuIcons.tsx: a curated set of ~65 Heroicons outline names (the ten in use + common ones)
+     and a MenuIcon component: known -> the icon; none -> a blank spacer; unknown -> an amber ? with
+     the name in its tooltip (table/form) or a blank (sidebar).
+  2. The sidebar links and the Menus table rows show the entry's icon before its label.
+  3. The form's icon field: a live preview, name suggestions (datalist), a flag for a name the
+     console can't draw ("Did you mean ...?" for a case slip); an unknown name still saves.
+  ACCEPTANCE: every curated name draws; the seeded entries show their icons in the sidebar and
+  table; none/unknown never break a link; the preview follows typing. cce-insights-ui is not
+  changed and does not use the icon.
+
+  ADDENDUM TOTAL: ~10 hours (+ U17 ~1.5h, U18 ~2h added in Milestone 9)
 
 ================================================================================

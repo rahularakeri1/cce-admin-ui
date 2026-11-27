@@ -200,8 +200,10 @@ calls.
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Table**, grouped *Insights* then *Admin console*: position, label (struck through when inactive), key, path, status.
-  An action on one row (a refused deactivate) shows its message under that row.
+- **Table**, grouped *Insights* then *Admin console*: position, **icon and label** (struck through when inactive), key, path,
+  status. The icon is the one saved on the entry, drawn from the same Heroicons names `cce-insights-ui` uses; an entry with
+  none shows a blank, and a name this console can't draw shows an amber **?** with the name in its tooltip, so a typo is
+  visible. An action on one row (a refused deactivate) shows its message under that row.
 - **Arranging.** Drag a row by its ⋮⋮ handle to where it should go — within its own group; a drop onto the other group
   is ignored. The ▲ / ▼ buttons on every row do the same one step at a time, for keyboards and touch screens (▲ is off on
   the first row of a group, ▼ on the last). The new order shows at once as a **draft**: a bar appears with **Save order**
@@ -213,7 +215,11 @@ calls.
   refused (`409 MENU_ORDER_OUTDATED`): the screen says the list changed, reloads it and drops the draft, so you arrange
   again against the current list. An entry deleted while you have a draft simply drops out of it; one added appears at
   the end of its group.
-- **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, active. The **key is
+- **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, active. The **icon**
+  field shows a **live preview** of what you type and suggests names from a curated set of common Heroicons (the ten
+  already in use plus about fifty-five more) as you type; a name outside the set still saves — other consoles may know
+  more icons — but is flagged ("this console can't draw it") and, if it differs from a known name only by case, the
+  fix is offered ("Did you mean ChartBarIcon?"). The **key is
   permanent** — read-only when editing, with the reason. **Console** is shown but not editable: entries made here are
   always *Insights*; the admin console's own tabs come from a migration (an admin tab needs a screen built in code). A new
   entry goes to the **end of Insights**, and the form says so — drag it into place afterwards. Checked in the browser first
@@ -231,6 +237,9 @@ calls.
   ADMIN_MENU_PROTECTED`), so calling the API directly doesn't get round it.
 - Any change refetches the catalog, every role's saved menus and **this console's own sidebar**, so renaming or
   re-arranging an admin tab shows in the sidebar at once.
+- **Where the icon is used.** This console draws it (sidebar, table, form). `cce-insights-ui` does **not** yet: its
+  sidebar is a fixed list with its own icons and never reads `GET /me/menus`, so an icon saved here has no effect there
+  until that UI is changed to fetch the menu list (not in the current plan).
 - Flat table, simplified from the PRD's NAV/DETAIL tree — see
   [cce-admin-service data dictionary §1.3](../../cce-admin-service/docs/data-dictionary.md#13-menus--console-screen-catalog).
 
@@ -248,10 +257,12 @@ calls.
 
 ## Role-aware sidebar (Milestone 7)
 
-- **Sidebar from the API.** Built from `GET /me/menus?console=ADMIN`, in `sort_order`, as plain text links:
+- **Sidebar from the API.** Built from `GET /me/menus?console=ADMIN`, in position order, as links with each entry's icon and label:
   **Users**, **Roles**, **Menus**, **Protocols** for a `SUPER_ADMIN`; only the entries a user's roles carry for
   anyone else. This replaced the static three-link sidebar (F-03). A tab the API returns that this build has no
-  screen for is not shown.
+  screen for is not shown. **Icons:** each link shows the icon saved on its menu entry (a Heroicons outline name, e.g.
+  `UsersIcon`) before its label. An entry with no icon, or a name this console can't draw, shows no icon there (the label
+  is still aligned), and the link's accessible name is just its label.
 - **Landing.** After sign-in a user lands on their first allowed tab.
 - **Route guards.** A URL the user has no tab for redirects to their first allowed tab. A user with no admin tabs
   at all — or whose menus call answers `403` — sees a plain "No access to the admin console" screen (with its
