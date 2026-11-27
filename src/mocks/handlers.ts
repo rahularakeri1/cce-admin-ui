@@ -105,9 +105,7 @@ export const mockDb = {
   // The admin tabs (menu keys) the signed-in user's roles carry; the default mock user is a SUPER_ADMIN.
   myAdminMenuKeys: [...ADMIN_MENU_KEYS],
   meMenusCalls: [] as string[],
-  nextMenuId: 1,
   menuLoadFailNext: null as { status: number; code: string; message: string } | null,
-  menuDeleteCalls: 0,
   reorderCalls: [] as { console: string; menuIds: string[] }[],
   lastMenuBody: null as Record<string, unknown> | null,
   users: [] as MockUser[],
@@ -144,9 +142,7 @@ export function resetMockDb() {
   mockDb.roleMenus = {};
   mockDb.myAdminMenuKeys = [...ADMIN_MENU_KEYS];
   mockDb.meMenusCalls = [];
-  mockDb.nextMenuId = 1;
   mockDb.menuLoadFailNext = null;
-  mockDb.menuDeleteCalls = 0;
   mockDb.reorderCalls = [];
   mockDb.lastMenuBody = null;
   mockDb.users = [];
@@ -579,30 +575,8 @@ export const handlers = [
     return HttpResponse.json({ data: sortedMenus() });
   }),
 
-  // Mirrors cce-admin-service MenuService: key unique + permanent, entries made here are INSIGHTS, the admin
-  // console's own tabs can't be deleted, deactivated or moved. Sets mockDb.lastMenuBody for assertions.
-  http.post(`${BASE}/menus`, async ({ request }) => {
-    const body = (await request.json()) as { menuKey: string; label: string; path: string; icon?: string; sortOrder?: number; isActive?: boolean };
-    mockDb.lastMenuBody = body;
-    const failure = takeFailure();
-    if (failure) return failure;
-    if (mockDb.menus.some((m) => m.menuKey === body.menuKey)) {
-      return HttpResponse.json({ error: { code: "DUPLICATE_MENU_KEY", message: `Menu key already in use: ${body.menuKey}` } }, { status: 409 });
-    }
-    const created = {
-      id: `m-new-${mockDb.nextMenuId++}`,
-      menuKey: body.menuKey,
-      label: body.label,
-      path: body.path,
-      icon: body.icon ?? null,
-      console: "INSIGHTS",
-      // No explicit position: the end of Insights, like the real service (max + 1).
-      sortOrder: body.sortOrder ?? Math.max(0, ...mockDb.menus.filter((m) => m.console === "INSIGHTS").map((m) => m.sortOrder)) + 1,
-      isActive: body.isActive ?? true,
-    };
-    mockDb.menus.push(created);
-    return HttpResponse.json({ data: created }, { status: 201 });
-  }),
+  // Mirrors cce-admin-service MenuService: the catalog is edit-only (no POST, no DELETE); an entry's key is
+  // permanent and the admin console's own tabs can't be deactivated or moved. PUT sets mockDb.lastMenuBody.
   // Mirrors PUT /menus/order: the COMPLETE ordered list of one console, renumbered 1..n; anything else is stale.
   // Registered before /menus/:id so "order" is never taken for an id.
   http.put(`${BASE}/menus/order`, async ({ request }) => {
@@ -646,24 +620,6 @@ export const handlers = [
     if (body.sortOrder !== undefined) menu.sortOrder = body.sortOrder;
     if (body.isActive !== undefined) menu.isActive = body.isActive;
     return HttpResponse.json({ data: menu });
-  }),
-  http.delete(`${BASE}/menus/:id`, ({ params }) => {
-    mockDb.menuDeleteCalls += 1;
-    const failure = takeFailure();
-    if (failure) return failure;
-    const menu = mockDb.menus.find((m) => m.id === params.id);
-    if (!menu) return HttpResponse.json({ error: { code: "MENU_NOT_FOUND", message: "No menu" } }, { status: 404 });
-    if (menu.console === "ADMIN") {
-      return HttpResponse.json(
-        { error: { code: "ADMIN_MENU_PROTECTED", message: `The admin console's own tab "${menu.label}" is protected` } },
-        { status: 409 },
-      );
-    }
-    mockDb.menus = mockDb.menus.filter((m) => m.id !== menu.id);
-    for (const roleId of Object.keys(mockDb.roleMenus)) {
-      mockDb.roleMenus[roleId] = mockDb.roleMenus[roleId].filter((id) => id !== menu.id); // exactly its own assignments
-    }
-    return new HttpResponse(null, { status: 204 });
   }),
 
   http.get(`${BASE}/health`, () => HttpResponse.json({ status: "UP" })),

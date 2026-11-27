@@ -1,18 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { LockClosedIcon } from "@heroicons/react/24/outline";
 import { ApiError } from "../api/client";
 import type { Menu, ConsoleName } from "../api/menus";
 import { InlineForbidden } from "../components/InlineForbidden";
 import { MenuIcon } from "../lib/menuIcons";
-import { useDeleteMenu, useMenuCatalog, useReorderMenus, useUpdateMenu } from "../hooks/useMenus";
+import { useMenuCatalog, useReorderMenus, useUpdateMenu } from "../hooks/useMenus";
 
 const GROUPS: { console: ConsoleName; title: string }[] = [
   { console: "INSIGHTS", title: "Insights" },
   { console: "ADMIN", title: "Admin console" },
 ];
 
-/** The admin console builds its own sidebar from these, so the server refuses to delete or hide them. */
+/** The admin console builds its own sidebar from these, so the server refuses to hide them. */
 export const isProtected = (menu: Menu) => menu.console === "ADMIN";
 
 const PROTECTED_HINT = "Protected: this console's own sidebar is built from it";
@@ -26,67 +26,12 @@ function errorText(error: unknown): string {
   return "Something went wrong — try again.";
 }
 
-function DeleteDialog({ menu, onClose, onDeleted }: { menu: Menu; onClose: () => void; onDeleted: () => void }) {
-  const del = useDeleteMenu();
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => cancelRef.current?.focus(), []);
-
-  return (
-    <div
-      className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
-      onKeyDown={(e) => e.key === "Escape" && !del.isPending && onClose()}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-menu-title"
-        className="w-full max-w-md rounded-md border border-gray-200 bg-white p-5 shadow-lg"
-      >
-        <h2 id="delete-menu-title" className="text-base font-semibold text-gray-900">
-          Delete “{menu.label}”?
-        </h2>
-        <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <strong>This also removes it from every role that has it.</strong> Those roles lose it silently, and it can't be
-          undone.
-        </p>
-        <p className="mt-3 text-sm text-gray-700">
-          If you only want it hidden for now, use <strong>Deactivate</strong> instead — the role assignments are kept.
-        </p>
-        {del.error && (
-          <p role="alert" className="mt-3 text-sm text-red-700">
-            {errorText(del.error)}
-          </p>
-        )}
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => del.mutate(menu.id, { onSuccess: onDeleted })}
-            disabled={del.isPending}
-            className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
-          >
-            {del.isPending ? "Deleting…" : "Delete menu"}
-          </button>
-          <button
-            ref={cancelRef}
-            type="button"
-            onClick={onClose}
-            disabled={del.isPending}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const sameOrder = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
 
 type Drafts = Partial<Record<ConsoleName, string[]>>;
 
 /**
- * The order to show for one group: the draft, reconciled with what the server has now. An entry deleted since the
+ * The order to show for one group: the draft, reconciled with what the server has now. An entry removed since the
  * draft was made drops out of it; one added since appears at the end — so a draft never refers to something that
  * isn't there, and always covers exactly the group's current entries (which is what the server insists on).
  */
@@ -104,7 +49,6 @@ export default function MenusCatalogPage() {
   const reorder = useReorderMenus();
   const flash = (useLocation().state as { saved?: string; highlight?: string } | null) ?? null;
   const [notice, setNotice] = useState<string | null>(flash?.saved ?? null);
-  const [deleting, setDeleting] = useState<Menu | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   // Arranging: nothing is stored until Save order. `drafts` is the unsaved order per group.
@@ -150,9 +94,9 @@ export default function MenusCatalogPage() {
       setNotice("Saved the new order.");
     } catch (err) {
       if (err instanceof ApiError && err.code === "MENU_ORDER_OUTDATED") {
-        // Someone added or deleted an entry while this was being arranged: the list was reloaded; start again from it.
+        // The list changed while this was being arranged: the list was reloaded; start again from it.
         setDrafts({});
-        setOrderError("The list changed while you were arranging it (an entry was added or deleted). It has been reloaded — arrange it again.");
+        setOrderError("The list changed while you were arranging it (a release changed the entries). It has been reloaded — arrange it again.");
       } else {
         setOrderError(errorText(err));
       }
@@ -189,17 +133,9 @@ export default function MenusCatalogPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Menus</h1>
-        <Link
-          to="/menus/new"
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          + Add menu
-        </Link>
-      </div>
+      <h1 className="text-xl font-semibold text-gray-900">Menus</h1>
       <p className="mt-1 text-sm text-gray-600">
-        The list of sidebar entries and their order. Drag a row by its handle (or use the arrows), then Save order. Which
+        The sidebar entries and their order. Drag a row by its handle (or use the arrows), then Save order. Which
         roles get which entry is set on each role's Menus tab.
       </p>
 
@@ -378,19 +314,6 @@ export default function MenusCatalogPage() {
                         className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                       >
                         {busy ? "…" : menu.isActive ? "Deactivate" : "Activate"}
-                      </button>{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNotice(null);
-                          setDeleting(menu);
-                        }}
-                        disabled={locked}
-                        title={locked ? PROTECTED_HINT : undefined}
-                        aria-label={`Delete ${menu.label}`}
-                        className="rounded border border-red-300 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-40"
-                      >
-                        Delete
                       </button>
                       {rowError?.id === menu.id && (
                         <p role="alert" className="mt-1 text-left text-xs text-red-700">
@@ -406,16 +329,6 @@ export default function MenusCatalogPage() {
         })}
       </table>
 
-      {deleting && (
-        <DeleteDialog
-          menu={deleting}
-          onClose={() => setDeleting(null)}
-          onDeleted={() => {
-            setNotice(`Deleted “${deleting.label}”, and removed it from every role that had it.`);
-            setDeleting(null);
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -81,7 +81,7 @@ function AdminRoutes({ menus }: { menus: MyMenu[] }) {
       {has("/menus") && (
         <>
           <Route path="/menus" element={<MenusCatalogPage />} />
-          <Route path="/menus/new" element={<MenuFormPage />} />
+          <Route path="/menus/new" element={<Navigate to="/menus" replace />} />
           <Route path="/menus/:id" element={<MenuFormPage />} />
         </>
       )}

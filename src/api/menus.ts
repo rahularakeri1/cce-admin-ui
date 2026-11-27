@@ -40,17 +40,8 @@ export interface MenuInput {
   isActive?: boolean;
 }
 
-export async function createMenu(input: MenuInput): Promise<Menu> {
-  return (await request<Menu>("/menus", { method: "POST", body: JSON.stringify(input) })).data;
-}
-
 export async function updateMenu(id: string, input: MenuInput): Promise<Menu> {
   return (await request<Menu>(`/menus/${id}`, { method: "PUT", body: JSON.stringify(input) })).data;
-}
-
-/** Permanent. Also removes the entry from every role that held it (their other menus are untouched). */
-export async function deleteMenu(id: string): Promise<void> {
-  await request<void>(`/menus/${id}`, { method: "DELETE" });
 }
 
 /**

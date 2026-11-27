@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Same rules the server enforces (MenuRequest): the key is lower-case, permanent and unique; the path starts with
-// "/". The server stays the authority — see the 409 handling in the form.
+// "/". The server stays the authority.
 export const MENU_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
 export const menuFormSchema = z.object({

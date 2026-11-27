@@ -73,10 +73,11 @@ describe("App shell — role-aware sidebar", () => {
     expect(mockDb.protocolListCalls).toBe(0);
   });
 
-  it("the Menus tab opens the catalog and its add/edit sub-pages", async () => {
+  it("the Menus tab opens the catalog, which is edit-only", async () => {
     renderApp("/menus");
     expect(await screen.findByRole("rowgroup", { name: "Insights" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "+ Add menu" })).toHaveAttribute("href", "/menus/new");
+    expect(screen.queryByRole("link", { name: "+ Add menu" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit Dashboard" })).toHaveAttribute("href", "/menus/m-1");
   });
 
   it("renaming an admin tab in the catalog updates this console's own sidebar straight away", async () => {
