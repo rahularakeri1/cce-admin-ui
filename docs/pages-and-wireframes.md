@@ -114,8 +114,8 @@ needs an actual design pass rather than guessing at layout.
 ```
 ┌─ Roles ────────────────────────────────────── [+ New Role] ─────────┐
 │ Name              Display Name            System?                   │
-│ 🔒 SUPER_ADMIN     Super Administrator      🔒 locked                │
-│    FACILITY_ADMIN  Facility Administrator                  [view]   │
+│ 🔒 SUPER_ADMIN     Super Administrator      🔒 locked      [View]   │
+│    FACILITY_ADMIN  Facility Administrator                  [Edit]   │
 ├─ + New Role (inline form) ───────────────────────────────────────────┤
 │ Name *  [UPPER_SNAKE_CASE___]  ⚠ "Name is permanent — cannot be      │
 │                                   renamed after creation"            │
@@ -124,10 +124,10 @@ needs an actual design pass rather than guessing at layout.
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-- Each non-system row has a **view** link and a **Delete** button; Delete asks for an explicit
+- Each non-system row has an **Edit** link (to the role's page: Menus and Permissions tabs) and a **Delete** button; Delete asks for an explicit
   "Delete NAME? [Confirm delete] [Cancel]" in the row (no optimistic removal — the row disappears on
   the next real refetch). `409 ROLE_IN_USE` shows inline in that row ("users still hold this role").
-- `is_system` roles (`SUPER_ADMIN`) show a lock icon; their row has only **view** — no delete/rename
+- `is_system` roles (`SUPER_ADMIN`) show a lock icon; their row has only **View** (the role's page is read-only for a system role) — no delete/rename
   action, not just a disabled one — the UI shouldn't let an admin discover `409 SYSTEM_ROLE_IMMUTABLE` by clicking
   something that visibly can't work.
 - A name that already exists as a gateway permission set (e.g. `COMPLIANCE_READ`) is refused by the server
