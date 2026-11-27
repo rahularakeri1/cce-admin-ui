@@ -287,9 +287,12 @@ Insights
   ☑ Dashboard  ☑ Facilities  ☐ Compliance ...
 ```
 
-  On the **`SUPER_ADMIN`** role all four admin entries are ticked and **locked** (cannot be removed). The server
-  enforces both rules (`409`, shown inline if it ever refuses a save); the greying-out just avoids offering what
-  would be refused. A locked tab is always sent ticked, even when only an insights menu changed.
+  On the **`SUPER_ADMIN`** role **every** entry — the four admin tabs and all the insights menus — is ticked and
+  **locked** (Milestone 9 follow-up): that role sees everything, so nothing can be unticked, and a note says so. The
+  server enforces the rules (`409 ADMIN_MENU_REQUIRED` / `SUPER_ADMIN_MENU_REQUIRED` / `ADMIN_MENU_SUPER_ADMIN_ONLY`,
+  shown inline if it ever refuses a save); the greying-out just avoids offering what would be refused. A locked entry
+  is always sent ticked. Every other role keeps editable insights menus. Because nothing on `SUPER_ADMIN` can change, its
+  Menus tab has no **Save** button, and the role's row on the Roles list says **View**.
 - `/protocols` is a placeholder until Milestone 8.
 
 ## `/protocols` — Protocols (Milestone 8)
