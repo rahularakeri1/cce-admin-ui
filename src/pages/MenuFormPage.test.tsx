@@ -7,122 +7,24 @@ import { renderMenus } from "../test-utils/menus";
 const field = (name: RegExp) => screen.getByLabelText(name);
 const save = () => screen.getByRole("button", { name: /^(Save|Saving…)$/ });
 
-async function fillNew(user: ReturnType<typeof userEvent.setup>, v: { key?: string; label?: string; path?: string; icon?: string }) {
-  if (v.key !== undefined) await user.type(field(/^Key/), v.key);
-  if (v.label !== undefined) await user.type(field(/^Label/), v.label);
-  if (v.path !== undefined) await user.type(field(/^Path/), v.path);
-  if (v.icon !== undefined) await user.type(field(/^Icon/), v.icon);
-}
+const openDashboard = async () => {
+  renderMenus("/menus/m-1"); // Dashboard, saved with ChartBarIcon
+  await screen.findByRole("heading", { name: /Edit/ });
+};
 
-describe("MenuFormPage — add", () => {
-  it("starts empty, Insights-only, active, and explains the key is permanent", () => {
+describe("MenuFormPage — no add (the catalog is edit-only)", () => {
+  it("/menus/new goes back to the table: there is no add form", async () => {
     renderMenus("/menus/new");
-    expect(screen.getByRole("heading", { name: "Add menu" })).toBeInTheDocument();
-    expect(field(/^Key/)).toHaveValue("");
-    expect(field(/^Active/)).toBeChecked();
-    expect(screen.getByText(/Can't be changed later/)).toBeInTheDocument();
-    expect(screen.getByText("Insights")).toBeInTheDocument();
-    expect(screen.getByText(/go to the end of the list — drag them into place on the Menus screen/)).toBeInTheDocument();
-  });
-
-  it("has no sort-number field: entries are arranged by dragging them on the Menus screen", () => {
-    renderMenus("/menus/new");
-    expect(screen.queryByLabelText(/sort/i)).not.toBeInTheDocument();
-  });
-
-  it("refuses bad input in the browser, field by field, without calling the server", async () => {
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "Bad Key", path: "no-slash" });
-    await user.click(save());
-
-    expect(await screen.findByText("Use lower-case letters, digits, - or _, e.g. reports")).toBeInTheDocument();
-    expect(screen.getByText("Label is required")).toBeInTheDocument();
-    expect(screen.getByText("Path must start with /")).toBeInTheDocument();
-    expect(mockDb.lastMenuBody).toBeNull();
-  });
-
-  it("creates the entry (never sending a console), returns to the list with a message and the new row highlighted", async () => {
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports", icon: "ChartBarIcon" });
-    await user.click(save());
-
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Added “Reports” at the end of Insights. Drag it into place, then assign it to roles on the Roles screen.",
-    );
-    expect(mockDb.lastMenuBody).toEqual({ menuKey: "reports", label: "Reports", path: "/reports", icon: "ChartBarIcon", isActive: true });
-    expect(mockDb.lastMenuBody).not.toHaveProperty("console");
-    expect(mockDb.lastMenuBody).not.toHaveProperty("sortOrder");
-    const row = await screen.findByRole("row", { name: /Reports/ });
-    expect(row).toHaveClass("bg-blue-50");
-    expect(mockDb.menus.find((m) => m.menuKey === "reports")?.console).toBe("INSIGHTS");
-    // it landed LAST in Insights (one past the old last), ahead of nothing
-    const insights = within(screen.getByRole("rowgroup", { name: "Insights" })).getAllByRole("row");
-    expect(insights[insights.length - 1]).toBe(row);
-  });
-
-  it("an unticked Active creates it inactive", async () => {
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "later", label: "Later", path: "/later" });
-    await user.click(field(/^Active/));
-    await user.click(save());
-
-    await screen.findByRole("status");
-    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "later", isActive: false });
-  });
-
-  it("a duplicate key is explained next to the key field, and what was typed is kept", async () => {
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "facilities", label: "Another facilities", path: "/other" });
-    await user.click(save());
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Key already in use: facilities. Pick another.");
-    expect(field(/^Label/)).toHaveValue("Another facilities");
-    expect(screen.getByRole("heading", { name: "Add menu" })).toBeInTheDocument();
-    expect(mockDb.menus).toHaveLength(7); // the 3 insights menus + 4 admin tabs: nothing was added
-  });
-
-  it("a server failure is shown and the form stays", async () => {
-    mockDb.failNext = { status: 500, code: "INTERNAL", message: "Something broke on the server" };
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
-    await user.click(save());
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Something broke on the server");
-    expect(field(/^Key/)).toHaveValue("reports");
-  });
-
-  it("a 403 says the role may not change menus", async () => {
-    mockDb.failNext = { status: 403, code: "FORBIDDEN", message: "Access denied" };
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
-    await user.click(save());
-
-    expect(await screen.findByText("You don't have permission to do this.")).toBeInTheDocument();
-    expect(screen.getByText("You can't change menus.")).toBeInTheDocument();
-  });
-
-  it("disables Save while saving", async () => {
-    renderMenus("/menus/new");
-    const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
-    const click = user.click(save());
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument());
-    await click;
+    expect(await screen.findByRole("heading", { name: "Menus" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Add menu" })).not.toBeInTheDocument();
   });
 });
 
 describe("MenuFormPage — icon", () => {
   const preview = () => screen.getByRole("img", { name: "Preview of the chosen icon" });
 
-  it("starts with an empty preview, and suggests the icons this console can draw", () => {
-    renderMenus("/menus/new");
-    expect(preview().querySelector("svg")).toBeNull();
+  it("suggests the icons this console can draw", async () => {
+    await openDashboard();
     const options = document.querySelectorAll("#menu-icon-names option");
     expect(options.length).toBeGreaterThanOrEqual(60);
     expect(document.querySelector('#menu-icon-names option[value="ChartBarIcon"]')).not.toBeNull();
@@ -130,17 +32,20 @@ describe("MenuFormPage — icon", () => {
   });
 
   it("previews a known icon as you type, with nothing flagged", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
-    await user.type(field(/^Icon/), "ChartBarIcon");
+    await user.clear(field(/^Icon/));
+    expect(preview().querySelector("svg")).toBeNull();
+    await user.type(field(/^Icon/), "CalendarIcon");
 
     expect(preview().querySelector("svg")).not.toBeNull();
     expect(screen.queryByText(/isn't a known icon|can't draw/)).not.toBeInTheDocument();
   });
 
   it("a case slip gets the fix offered, and the preview shows the placeholder meanwhile", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
+    await user.clear(field(/^Icon/));
     await user.type(field(/^Icon/), "chartbaricon");
 
     expect(screen.getByText(/did you mean/)).toHaveTextContent("“chartbaricon” isn't a known icon — did you mean ChartBarIcon?");
@@ -148,28 +53,27 @@ describe("MenuFormPage — icon", () => {
   });
 
   it("an unknown name is flagged but still saves (another console may know more icons)", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports", icon: "SomeOtherIcon" });
+    await user.clear(field(/^Icon/));
+    await user.type(field(/^Icon/), "SomeOtherIcon");
 
     expect(screen.getByText(/isn't an icon this console can draw. It will still save, but shows a \? here/)).toBeInTheDocument();
     await user.click(save());
 
     await screen.findByRole("status");
-    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "reports", icon: "SomeOtherIcon" });
+    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "dashboard", icon: "SomeOtherIcon" });
   });
 
   it("editing shows the saved icon straight away", async () => {
-    renderMenus("/menus/m-1");
-    await screen.findByRole("heading", { name: /Edit/ });
+    await openDashboard();
     expect(field(/^Icon/)).toHaveValue("ChartBarIcon");
     expect(preview().querySelector("svg")).not.toBeNull();
   });
 
   it("clearing the icon clears the preview and saves with none", async () => {
-    renderMenus("/menus/m-1");
+    await openDashboard();
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: /Edit/ });
 
     await user.clear(field(/^Icon/));
     expect(preview().querySelector("svg")).toBeNull();
@@ -187,7 +91,7 @@ describe("MenuFormPage — icon picker", () => {
   const preview = () => screen.getByRole("img", { name: "Preview of the chosen icon" });
 
   it("is closed until Browse icons is pressed, and says it is expandable", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     expect(picker()).not.toBeInTheDocument();
     expect(browse()).toHaveAttribute("aria-expanded", "false");
 
@@ -199,32 +103,31 @@ describe("MenuFormPage — icon picker", () => {
   });
 
   it("choosing an icon fills the field and the preview, closes the picker and returns focus", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
     await user.click(browse());
 
-    await user.click(within(picker()!).getByRole("button", { name: "ChartBarIcon" }));
+    await user.click(within(picker()!).getByRole("button", { name: "StarIcon" }));
 
-    expect(field(/^Icon/)).toHaveValue("ChartBarIcon");
+    expect(field(/^Icon/)).toHaveValue("StarIcon");
     expect(preview().querySelector("svg")).not.toBeNull();
     expect(picker()).not.toBeInTheDocument();
     expect(browse()).toHaveFocus();
   });
 
   it("the chosen icon is what gets saved", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
     await user.click(browse());
     await user.click(within(picker()!).getByRole("button", { name: "StarIcon" }));
     await user.click(save());
 
     await screen.findByRole("status");
-    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "reports", icon: "StarIcon" });
+    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "dashboard", icon: "StarIcon" });
   });
 
   it("searching narrows the grid, and the match can be chosen", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
     await user.click(browse());
     await user.type(screen.getByRole("searchbox"), "calendar");
@@ -237,9 +140,8 @@ describe("MenuFormPage — icon picker", () => {
   });
 
   it("None clears a previously chosen icon", async () => {
-    renderMenus("/menus/m-1"); // Dashboard has ChartBarIcon
+    await openDashboard(); // Dashboard has ChartBarIcon
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: /Edit/ });
     await user.click(browse());
     expect(within(picker()!).getByRole("button", { name: "ChartBarIcon" })).toHaveAttribute("aria-pressed", "true"); // the current one
 
@@ -253,9 +155,8 @@ describe("MenuFormPage — icon picker", () => {
   });
 
   it("Escape and Close shut it without changing the field", async () => {
-    renderMenus("/menus/m-1");
+    await openDashboard();
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: /Edit/ });
 
     await user.click(browse());
     await user.keyboard("{Escape}");
@@ -270,21 +171,21 @@ describe("MenuFormPage — icon picker", () => {
   });
 
   it("Enter in the search box never submits the form", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
     await user.click(browse());
 
     await user.type(screen.getByRole("searchbox"), "chart{Enter}");
 
     expect(mockDb.lastMenuBody).toBeNull(); // nothing was sent
-    expect(screen.getByRole("heading", { name: "Add menu" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Edit/ })).toBeInTheDocument();
     expect(picker()).toBeInTheDocument();
   });
 
   it("an unknown name already in the field is shown in the picker as the current value", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
+    await user.clear(field(/^Icon/));
     await user.type(field(/^Icon/), "SomeOtherIcon");
     await user.click(browse());
 
@@ -292,8 +193,9 @@ describe("MenuFormPage — icon picker", () => {
   });
 
   it("choosing from the picker clears the unknown-name warning", async () => {
-    renderMenus("/menus/new");
+    await openDashboard();
     const user = userEvent.setup();
+    await user.clear(field(/^Icon/));
     await user.type(field(/^Icon/), "NopeIcon");
     expect(screen.getByText(/can draw/)).toBeInTheDocument();
 
@@ -325,6 +227,7 @@ describe("MenuFormPage — edit", () => {
     expect(screen.getByText(/Fixed once created/)).toBeInTheDocument();
     expect(field(/^Label/)).toHaveValue("Facilities");
     expect(field(/^Path/)).not.toHaveAttribute("readonly");
+    expect(screen.getByText(/Must be a page the app has/)).toBeInTheDocument(); // an Insights path needs a page behind it
     expect(screen.queryByLabelText(/sort/i)).not.toBeInTheDocument();
   });
 
@@ -350,7 +253,7 @@ describe("MenuFormPage — edit", () => {
     expect(await screen.findByText("Menu not found.")).toBeInTheDocument();
   });
 
-  it("a menu deleted underneath the form is reported when saving", async () => {
+  it("a menu that no longer exists is reported when saving", async () => {
     renderMenus("/menus/m-2");
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: /Edit/ });

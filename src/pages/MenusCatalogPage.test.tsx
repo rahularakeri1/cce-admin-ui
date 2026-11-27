@@ -57,14 +57,17 @@ describe("MenusCatalogPage", () => {
     it("the icon doesn't change a row's accessible name or its actions", async () => {
       renderMenus("/menus");
       await screen.findByRole("rowgroup", { name: "Insights" });
-      expect(screen.getByRole("button", { name: "Delete Dashboard" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Deactivate Dashboard" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Edit Dashboard" })).toBeInTheDocument();
     });
   });
 
-  it("offers + Add menu", async () => {
+  it("is edit-only: no Add menu and no Delete anywhere on the screen", async () => {
     renderMenus("/menus");
-    expect(await screen.findByRole("link", { name: "+ Add menu" })).toHaveAttribute("href", "/menus/new");
+    await screen.findByRole("rowgroup", { name: "Insights" });
+    expect(screen.queryByRole("link", { name: /Add menu/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Delete/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Delete")).not.toBeInTheDocument();
   });
 
   it("explains that role assignment lives on the role's Menus tab", async () => {
@@ -73,23 +76,21 @@ describe("MenusCatalogPage", () => {
   });
 
   describe("the four admin tabs are protected", () => {
-    it("cannot be deactivated or deleted from the screen, and say why; Edit is still there", async () => {
+    it("cannot be deactivated from the screen, and say why; Edit is still there", async () => {
       renderMenus("/menus");
       await screen.findByRole("rowgroup", { name: "Admin console" });
 
       for (const label of ["Users", "Roles", "Menus", "Protocols"]) {
         expect(screen.getByRole("button", { name: `Deactivate ${label}` })).toBeDisabled();
-        expect(screen.getByRole("button", { name: `Delete ${label}` })).toBeDisabled();
-        expect(screen.getByRole("button", { name: `Delete ${label}` })).toHaveAttribute("title", expect.stringMatching(/Protected/));
+        expect(screen.getByRole("button", { name: `Deactivate ${label}` })).toHaveAttribute("title", expect.stringMatching(/Protected/));
         expect(screen.getByRole("link", { name: `Edit ${label}` })).toBeInTheDocument();
       }
     });
 
-    it("an insights entry has all three actions enabled", async () => {
+    it("an insights entry has both actions enabled", async () => {
       renderMenus("/menus");
       await screen.findByRole("rowgroup", { name: "Insights" });
       expect(screen.getByRole("button", { name: "Deactivate Dashboard" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Delete Dashboard" })).toBeEnabled();
       expect(screen.getByRole("link", { name: "Edit Dashboard" })).toHaveAttribute("href", "/menus/m-1");
     });
   });
@@ -131,79 +132,6 @@ describe("MenusCatalogPage", () => {
 
       expect(await within(rowOf(/Dashboard/)).findByRole("alert")).toHaveTextContent("That one is protected");
       expect(mockDb.menus[0].isActive).toBe(true);
-    });
-  });
-
-  describe("delete", () => {
-    it("asks first, naming the real consequence and pointing at Deactivate", async () => {
-      renderMenus("/menus");
-      const user = userEvent.setup();
-      await screen.findByRole("rowgroup", { name: "Insights" });
-
-      await user.click(screen.getByRole("button", { name: "Delete Compliance" }));
-
-      const dialog = screen.getByRole("dialog", { name: /Delete “Compliance”\?/ });
-      expect(dialog).toHaveTextContent(/also removes it from every role that has it.*can't be undone/);
-      expect(dialog).toHaveTextContent(/use Deactivate instead.*role assignments are kept/);
-      expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
-      expect(mockDb.menuDeleteCalls).toBe(0);
-    });
-
-    it("Cancel and Escape change nothing", async () => {
-      renderMenus("/menus");
-      const user = userEvent.setup();
-      await screen.findByRole("rowgroup", { name: "Insights" });
-
-      await user.click(screen.getByRole("button", { name: "Delete Compliance" }));
-      await user.click(screen.getByRole("button", { name: "Cancel" }));
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: "Delete Compliance" }));
-      await user.keyboard("{Escape}");
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(mockDb.menuDeleteCalls).toBe(0);
-      expect(mockDb.menus.some((m) => m.menuKey === "compliance")).toBe(true);
-    });
-
-    it("confirming deletes it, removes exactly its role assignments, and says so", async () => {
-      mockDb.roleMenus["r-1"] = ["m-1", "m-3"]; // Dashboard, Compliance
-      mockDb.roleMenus["r-2"] = ["m-3"];
-      renderMenus("/menus");
-      const user = userEvent.setup();
-      await screen.findByRole("rowgroup", { name: "Insights" });
-
-      await user.click(screen.getByRole("button", { name: "Delete Compliance" }));
-      await user.click(screen.getByRole("button", { name: "Delete menu" }));
-
-      await waitFor(() => expect(screen.queryByRole("row", { name: /Compliance/ })).not.toBeInTheDocument());
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(screen.getByRole("status")).toHaveTextContent(/Deleted “Compliance”, and removed it from every role/);
-      expect(mockDb.roleMenus["r-1"]).toEqual(["m-1"]); // the other menu is untouched
-      expect(mockDb.roleMenus["r-2"]).toEqual([]);
-    });
-
-    it("an already-deleted entry says so in the dialog and the list refreshes", async () => {
-      renderMenus("/menus");
-      const user = userEvent.setup();
-      await screen.findByRole("rowgroup", { name: "Insights" });
-      await user.click(screen.getByRole("button", { name: "Delete Compliance" }));
-      mockDb.menus = mockDb.menus.filter((m) => m.menuKey !== "compliance"); // someone else deleted it
-
-      await user.click(screen.getByRole("button", { name: "Delete menu" }));
-
-      expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(/no longer exists/);
-    });
-
-    it("a 403 says the role may not change menus", async () => {
-      renderMenus("/menus");
-      const user = userEvent.setup();
-      await screen.findByRole("rowgroup", { name: "Insights" });
-      await user.click(screen.getByRole("button", { name: "Delete Compliance" }));
-
-      mockDb.failNext = { status: 403, code: "FORBIDDEN", message: "Access denied" };
-      await user.click(screen.getByRole("button", { name: "Delete menu" }));
-
-      expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent("Your role isn't allowed to change menus.");
     });
   });
 
@@ -376,12 +304,12 @@ describe("MenusCatalogPage", () => {
       expect(order("Insights")).toEqual(["Dashboard", "Facilities", "Compliance", "Late arrival"]); // the server's order, nothing dropped
     });
 
-    it("an entry deleted elsewhere drops out of the draft, which is then saved without it", async () => {
+    it("an entry that disappeared from the list (e.g. after a release) drops out of the draft, which is then saved without it", async () => {
       renderMenus("/menus");
       const user = userEvent.setup();
       await screen.findByRole("rowgroup", { name: "Insights" });
       await user.click(screen.getByRole("button", { name: "Move Dashboard down" })); // Facilities, Dashboard, Compliance
-      mockDb.menus = mockDb.menus.filter((m) => m.menuKey !== "compliance"); // deleted by another admin
+      mockDb.menus = mockDb.menus.filter((m) => m.menuKey !== "compliance"); // removed by a release
       await user.click(screen.getByRole("button", { name: "Deactivate Facilities" })); // any action refetches the list
 
       await waitFor(() => expect(order("Insights")).toEqual(["Facilities", "Dashboard"]));

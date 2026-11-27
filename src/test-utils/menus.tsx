@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import MenuFormPage from "../pages/MenuFormPage";
 import MenusCatalogPage from "../pages/MenusCatalogPage";
 
@@ -12,7 +12,7 @@ export function renderMenus(path: string, state?: { saved?: string; highlight?: 
       <MemoryRouter initialEntries={[{ pathname: path, state }]}>
         <Routes>
           <Route path="/menus" element={<MenusCatalogPage />} />
-          <Route path="/menus/new" element={<MenuFormPage />} />
+          <Route path="/menus/new" element={<Navigate to="/menus" replace />} />
           <Route path="/menus/:id" element={<MenuFormPage />} />
         </Routes>
       </MemoryRouter>
