@@ -94,6 +94,19 @@ describe("App shell — role-aware sidebar", () => {
     expect(within(sidebar()).queryByRole("link", { name: "Protocols" })).not.toBeInTheDocument();
   });
 
+  it("arranging the admin tabs re-orders this console's own sidebar once saved", async () => {
+    renderApp("/menus");
+    const user = userEvent.setup();
+    await within(sidebar()).findByRole("link", { name: "Users" });
+    await screen.findByRole("rowgroup", { name: "Admin console" });
+
+    await user.click(screen.getByRole("button", { name: "Move Users down" }));
+    expect(linkNames()).toEqual(["Users", "Roles", "Menus", "Protocols"]); // a draft changes nothing yet
+    await user.click(screen.getByRole("button", { name: "Save order" }));
+
+    await waitFor(() => expect(linkNames()).toEqual(["Roles", "Users", "Menus", "Protocols"]));
+  });
+
   it("uses the first allowed tab as the landing page", async () => {
     mockDb.myAdminMenuKeys = ["admin-roles", "admin-protocols"];
     renderApp("/");

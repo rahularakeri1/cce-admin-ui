@@ -27,8 +27,9 @@ export async function listMenus(): Promise<Menu[]> {
 }
 
 /**
- * Body of POST and PUT /menus. On create a missing sortOrder is 0 and a missing isActive is true; on update they
- * mean "unchanged" — the UI always sends everything. `console` is never sent: new entries are always INSIGHTS.
+ * Body of POST and PUT /menus. A missing isActive is true on create and "unchanged" on update; a missing sortOrder is
+ * the end of the list on create and "unchanged" on update — the UI never sends one, entries are arranged with
+ * {@link reorderMenus}. `console` is never sent: new entries are always INSIGHTS.
  */
 export interface MenuInput {
   menuKey: string;
@@ -50,4 +51,12 @@ export async function updateMenu(id: string, input: MenuInput): Promise<Menu> {
 /** Permanent. Also removes the entry from every role that held it (their other menus are untouched). */
 export async function deleteMenu(id: string): Promise<void> {
   await request<void>(`/menus/${id}`, { method: "DELETE" });
+}
+
+/**
+ * Arranges ONE console's entries: `menuIds` is the COMPLETE ordered list, never a partial move. The server renumbers
+ * them 1..n and answers with the whole catalog. 409 MENU_ORDER_OUTDATED means the list changed since it was loaded.
+ */
+export async function reorderMenus(console: ConsoleName, menuIds: string[]): Promise<Menu[]> {
+  return (await request<Menu[]>("/menus/order", { method: "PUT", body: JSON.stringify({ console, menuIds }) })).data;
 }

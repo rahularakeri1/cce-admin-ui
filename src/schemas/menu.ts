@@ -18,10 +18,6 @@ export const menuFormSchema = z.object({
     .max(255, "At most 255 characters")
     .regex(/^\//, "Path must start with /"),
   icon: z.string().trim().max(100, "At most 100 characters").optional(),
-  sortOrder: z
-    .number({ invalid_type_error: "Sort order must be a number" })
-    .int("Use a whole number")
-    .min(0, "Zero or more"),
   isActive: z.boolean(),
 });
 
