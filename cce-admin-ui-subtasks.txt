@@ -363,7 +363,7 @@ ACCEPTANCE CRITERIA:
     path and a clean 201 with no warnings
 
 ================================================================================
-SUB-TASK U11: Menus Catalog  [DONE - Milestone 9]
+SUB-TASK U11: Menus Catalog  [DONE - Milestone 9; arranging by drag = U17]
 ================================================================================
 
 DESCRIPTION:
@@ -521,6 +521,44 @@ SUB-TASK U16: Protocol Upload                                        (~3 hours) 
   ACCEPTANCE: a broken file never reaches the server; the sample
   emr-service-protocol.json uploads end to end.
 
-  ADDENDUM TOTAL: ~10 hours
+SUB-TASK U17: Arrange Menus (drag and drop)                          (~1.5 hours)
+  Added during Milestone 9 (the user asked to arrange menus by dragging instead of typing sort
+  numbers). Docs: docs/pages-and-wireframes.md (/menus). Needs backend A21.
+  1. The catalog table: a drag handle per row (native HTML drag, within a group only) plus
+     up/down buttons per row (keyboard and touch); positions replace the Sort column.
+  2. The order is a DRAFT with Save order / Reset; Save sends PUT /menus/order once per changed
+     group with the COMPLETE order, then refetches. 409 MENU_ORDER_OUTDATED: say the list changed,
+     reload, drop the draft. A draft reconciles with entries deleted/added meanwhile.
+  3. The sort-number field leaves the add/edit form; new entries go to the end of Insights.
+  ACCEPTANCE: dragging or the arrows rearrange a group and enable Save order; Reset restores;
+  Save sends every id in order and shows the saved order; a drop onto the other group does
+  nothing; a stale list is refused with a plain message; renaming/arranging an admin tab updates
+  the sidebar; the form has no sort field.
+
+SUB-TASK U18: Show Menu Icons in the Admin Console                   (~2 hours)
+  Added during Milestone 9: the form saved an icon that nothing displayed. Docs:
+  docs/pages-and-wireframes.md (/menus and the role-aware sidebar).
+  1. lib/menuIcons.tsx: a curated set of ~65 Heroicons outline names (the ten in use + common ones)
+     and a MenuIcon component: known -> the icon; none -> a blank spacer; unknown -> an amber ? with
+     the name in its tooltip (table/form) or a blank (sidebar).
+  2. The sidebar links and the Menus table rows show the entry's icon before its label.
+  3. The form's icon field: a live preview, name suggestions (datalist), a flag for a name the
+     console can't draw ("Did you mean ...?" for a case slip); an unknown name still saves.
+  ACCEPTANCE: every curated name draws; the seeded entries show their icons in the sidebar and
+  table; none/unknown never break a link; the preview follows typing. cce-insights-ui is not
+  changed and does not use the icon.
+
+SUB-TASK U19: Icon Picker                                            (~1.5 hours)
+  Added during Milestone 9: with only a text box, a user who doesn't already know the Heroicons
+  names can't choose an icon. Docs: docs/pages-and-wireframes.md (/menus form).
+  1. components/IconPicker.tsx: a "Browse icons" button opens a panel with a search box and a grid of
+     the curated icons as pictures with their names, plus None; click chooses, Esc closes; arrow keys
+     move (roving focus), Enter chooses; the chosen icon is highlighted; an empty search says so.
+  2. The form's icon field uses it (the typed name, preview, suggestions and flags stay).
+  ACCEPTANCE: every curated icon is offered with its name; choosing one fills the field and preview
+  and saves that name; None clears; search filters; keyboard works; a saved name outside the set is
+  shown as the current value. No API or database change.
+
+  ADDENDUM TOTAL: ~10 hours (+ U17 ~1.5h, U18 ~2h, U19 ~1.5h added in Milestone 9)
 
 ================================================================================
