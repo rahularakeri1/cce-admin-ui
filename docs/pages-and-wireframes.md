@@ -216,7 +216,7 @@ calls.
   again against the current list. An entry added meanwhile appears at the end of its group.
 - **Edit** (`/menus/:id`) opens the entry's form: key, label, path, icon, active. There is **no Add menu and no Delete**: the
   catalog is edit-only — a menu points at a page that has to exist in code, so entries come from migrations together with
-  their page (see the service's API reference). A bookmarked `/menus/new` goes back to the table. The **icon**
+  their page (see the service's API reference). A bookmarked `/menus/new` redirects to the table. The **icon**
   field shows a **live preview** and has a **Browse icons** button that opens a **picker**: a grid of every icon this
   console can draw — shown as pictures, each with its name under it — so nobody needs to know the names. Click one to
   choose it (the field and preview fill in and the picker closes); **None** clears it; a search box above the grid filters by
@@ -227,8 +227,9 @@ calls.
   ChartBarIcon?"). An entry that already holds a name outside the set shows it in the picker as the current value. The **key is
   permanent** — read-only when editing, with the reason. **Console** is shown but not editable. Checked in the
   browser first (label required, path starts with `/`). Saving returns to the table with a message and the saved row
-  highlighted. Changing a **path** to one the console's app has no page for makes the entry disappear from that sidebar
-  (the app hides links it cannot open), so the form warns about it.
+  highlighted. A **path** the console's app has no page for makes the entry disappear from that sidebar (the app hides
+  links it cannot open), so under the path field the form notes: *"Must be a page the app has. A path with no page behind
+  it disappears from the sidebar."* (not shown for the admin tabs, whose path is fixed).
 - **Deactivate / Activate** is the usual way to retire an entry: it disappears from **every** sidebar but keeps its
   role assignments, and activating brings it back for the same roles.
 - **The four admin tabs are protected** (a 🔒 on the label): their Deactivate is disabled with the reason,
