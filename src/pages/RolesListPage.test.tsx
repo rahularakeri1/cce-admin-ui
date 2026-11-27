@@ -30,7 +30,7 @@ describe("RolesListPage", () => {
     renderPage();
     const row = (await screen.findByText("SUPER_ADMIN")).closest("tr")!;
     expect(within(row).getByLabelText("System role (locked)")).toBeInTheDocument();
-    expect(within(row).getByRole("link", { name: "view" })).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "Edit Super Administrator" })).toBeInTheDocument();
     // Not merely disabled — absent.
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();
   });
