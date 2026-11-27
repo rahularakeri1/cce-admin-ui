@@ -108,6 +108,7 @@ export const mockDb = {
   nextMenuId: 1,
   menuLoadFailNext: null as { status: number; code: string; message: string } | null,
   menuDeleteCalls: 0,
+  reorderCalls: [] as { console: string; menuIds: string[] }[],
   lastMenuBody: null as Record<string, unknown> | null,
   users: [] as MockUser[],
   unsyncedRoleIds: new Set<string>(),
@@ -146,6 +147,7 @@ export function resetMockDb() {
   mockDb.nextMenuId = 1;
   mockDb.menuLoadFailNext = null;
   mockDb.menuDeleteCalls = 0;
+  mockDb.reorderCalls = [];
   mockDb.lastMenuBody = null;
   mockDb.users = [];
   mockDb.unsyncedRoleIds = new Set();
@@ -180,6 +182,12 @@ function takeFailure() {
   mockDb.failNext = null;
   return fail ? HttpResponse.json({ error: { code: fail.code, message: fail.message } }, { status: fail.status }) : null;
 }
+
+/** What the real service returns: insights first, then the admin tabs, each by position then label. */
+const sortedMenus = (): MockMenu[] =>
+  [...mockDb.menus].sort(
+    (a, b) => b.console.localeCompare(a.console) || a.sortOrder - b.sortOrder || a.label.localeCompare(b.label),
+  );
 
 /** A staged protocol-call failure, consumed once (see mockDb.protocolFailNext). */
 function takeProtocolFailure() {
@@ -269,7 +277,7 @@ export const handlers = [
     mockDb.meMenusCalls.push(console);
     const failure = takeFailure();
     if (failure) return failure;
-    const menus = mockDb.menus
+    const menus = sortedMenus()
       .filter((m) => m.console === console)
       .filter((m) => console !== "ADMIN" || mockDb.myAdminMenuKeys.includes(m.menuKey))
       .map(({ id, label, path, icon }) => ({ id, label, path, icon }));
@@ -568,7 +576,7 @@ export const handlers = [
     const fail = mockDb.menuLoadFailNext;
     mockDb.menuLoadFailNext = null;
     if (fail) return HttpResponse.json({ error: { code: fail.code, message: fail.message } }, { status: fail.status });
-    return HttpResponse.json({ data: mockDb.menus });
+    return HttpResponse.json({ data: sortedMenus() });
   }),
 
   // Mirrors cce-admin-service MenuService: key unique + permanent, entries made here are INSIGHTS, the admin
@@ -588,11 +596,33 @@ export const handlers = [
       path: body.path,
       icon: body.icon ?? null,
       console: "INSIGHTS",
-      sortOrder: body.sortOrder ?? 0,
+      // No explicit position: the end of Insights, like the real service (max + 1).
+      sortOrder: body.sortOrder ?? Math.max(0, ...mockDb.menus.filter((m) => m.console === "INSIGHTS").map((m) => m.sortOrder)) + 1,
       isActive: body.isActive ?? true,
     };
     mockDb.menus.push(created);
     return HttpResponse.json({ data: created }, { status: 201 });
+  }),
+  // Mirrors PUT /menus/order: the COMPLETE ordered list of one console, renumbered 1..n; anything else is stale.
+  // Registered before /menus/:id so "order" is never taken for an id.
+  http.put(`${BASE}/menus/order`, async ({ request }) => {
+    const body = (await request.json()) as { console: string; menuIds: string[] };
+    mockDb.reorderCalls.push(body);
+    const failure = takeFailure();
+    if (failure) return failure;
+    const group = mockDb.menus.filter((m) => m.console === body.console);
+    const sameSet = group.length === body.menuIds.length && group.every((m) => body.menuIds.includes(m.id));
+    if (!sameSet) {
+      return HttpResponse.json(
+        { error: { code: "MENU_ORDER_OUTDATED", message: `The ${body.console} menu list changed since you loaded it` } },
+        { status: 409 },
+      );
+    }
+    body.menuIds.forEach((id, i) => {
+      const menu = mockDb.menus.find((m) => m.id === id);
+      if (menu) menu.sortOrder = i + 1;
+    });
+    return HttpResponse.json({ data: sortedMenus() });
   }),
   http.put(`${BASE}/menus/:id`, async ({ params, request }) => {
     const body = (await request.json()) as { menuKey: string; label: string; path: string; icon?: string; sortOrder?: number; isActive?: boolean };

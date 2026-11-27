@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createMenu, deleteMenu, updateMenu, type MenuInput } from "../api/menus";
+import { createMenu, deleteMenu, reorderMenus, updateMenu, type ConsoleName, type MenuInput } from "../api/menus";
 import { useMenuCatalog } from "./useRoleMenus";
 
 // The catalog read is shared with the role's Menus tab (same list, same cache key).
@@ -38,4 +38,14 @@ export function useUpdateMenu() {
 export function useDeleteMenu() {
   const refresh = useRefreshAfterMenuChange();
   return useMutation({ mutationFn: (id: string) => deleteMenu(id), onSuccess: refresh, onError: refresh });
+}
+
+/** Saves one console's arrangement (the complete ordered ids). A stale list is answered with a refetch of the truth. */
+export function useReorderMenus() {
+  const refresh = useRefreshAfterMenuChange();
+  return useMutation({
+    mutationFn: ({ console, menuIds }: { console: ConsoleName; menuIds: string[] }) => reorderMenus(console, menuIds),
+    onSuccess: refresh,
+    onError: refresh,
+  });
 }

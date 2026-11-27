@@ -185,7 +185,6 @@ needs an actual design pass rather than guessing at layout.
 ## `/menus` — Menus Catalog (F-15, Milestone 9)
 
 > **Planned — docs first, not implemented yet.** The text below describes the target for these parts, which arrive in their own PRs; until each one merges, the screen does not have it:
-> - arranging by dragging, and no sort-number field (Milestone 9b)
 > - icons in the sidebar and the Menus table (Milestone 9c)
 > - the icon picker in the form (Milestone 9d)
 
