@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mockDb } from "../mocks/handlers";
 import { renderMenus } from "../test-utils/menus";
@@ -7,15 +7,11 @@ import { renderMenus } from "../test-utils/menus";
 const field = (name: RegExp) => screen.getByLabelText(name);
 const save = () => screen.getByRole("button", { name: /^(Save|Saving…)$/ });
 
-async function fillNew(user: ReturnType<typeof userEvent.setup>, v: { key?: string; label?: string; path?: string; icon?: string; sort?: string }) {
+async function fillNew(user: ReturnType<typeof userEvent.setup>, v: { key?: string; label?: string; path?: string; icon?: string }) {
   if (v.key !== undefined) await user.type(field(/^Key/), v.key);
   if (v.label !== undefined) await user.type(field(/^Label/), v.label);
   if (v.path !== undefined) await user.type(field(/^Path/), v.path);
   if (v.icon !== undefined) await user.type(field(/^Icon/), v.icon);
-  if (v.sort !== undefined) {
-    await user.clear(field(/^Sort order/));
-    await user.type(field(/^Sort order/), v.sort);
-  }
 }
 
 describe("MenuFormPage — add", () => {
@@ -23,38 +19,47 @@ describe("MenuFormPage — add", () => {
     renderMenus("/menus/new");
     expect(screen.getByRole("heading", { name: "Add menu" })).toBeInTheDocument();
     expect(field(/^Key/)).toHaveValue("");
-    expect(field(/^Sort order/)).toHaveValue(0);
     expect(field(/^Active/)).toBeChecked();
     expect(screen.getByText(/Can't be changed later/)).toBeInTheDocument();
     expect(screen.getByText("Insights")).toBeInTheDocument();
-    expect(screen.getByText(/admin console's tabs come from a migration/)).toBeInTheDocument();
+    expect(screen.getByText(/go to the end of the list — drag them into place on the Menus screen/)).toBeInTheDocument();
+  });
+
+  it("has no sort-number field: entries are arranged by dragging them on the Menus screen", () => {
+    renderMenus("/menus/new");
+    expect(screen.queryByLabelText(/sort/i)).not.toBeInTheDocument();
   });
 
   it("refuses bad input in the browser, field by field, without calling the server", async () => {
     renderMenus("/menus/new");
     const user = userEvent.setup();
-    await fillNew(user, { key: "Bad Key", path: "no-slash", sort: "-1" });
+    await fillNew(user, { key: "Bad Key", path: "no-slash" });
     await user.click(save());
 
     expect(await screen.findByText("Use lower-case letters, digits, - or _, e.g. reports")).toBeInTheDocument();
     expect(screen.getByText("Label is required")).toBeInTheDocument();
     expect(screen.getByText("Path must start with /")).toBeInTheDocument();
-    expect(screen.getByText("Zero or more")).toBeInTheDocument();
     expect(mockDb.lastMenuBody).toBeNull();
   });
 
   it("creates the entry (never sending a console), returns to the list with a message and the new row highlighted", async () => {
     renderMenus("/menus/new");
     const user = userEvent.setup();
-    await fillNew(user, { key: "reports", label: "Reports", path: "/reports", icon: "ChartBarIcon", sort: "8" });
+    await fillNew(user, { key: "reports", label: "Reports", path: "/reports", icon: "ChartBarIcon" });
     await user.click(save());
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Added “Reports”. Now assign it to roles on the Roles screen.");
-    expect(mockDb.lastMenuBody).toEqual({ menuKey: "reports", label: "Reports", path: "/reports", icon: "ChartBarIcon", sortOrder: 8, isActive: true });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Added “Reports” at the end of Insights. Drag it into place, then assign it to roles on the Roles screen.",
+    );
+    expect(mockDb.lastMenuBody).toEqual({ menuKey: "reports", label: "Reports", path: "/reports", icon: "ChartBarIcon", isActive: true });
     expect(mockDb.lastMenuBody).not.toHaveProperty("console");
+    expect(mockDb.lastMenuBody).not.toHaveProperty("sortOrder");
     const row = await screen.findByRole("row", { name: /Reports/ });
     expect(row).toHaveClass("bg-blue-50");
     expect(mockDb.menus.find((m) => m.menuKey === "reports")?.console).toBe("INSIGHTS");
+    // it landed LAST in Insights (one past the old last), ahead of nothing
+    const insights = within(screen.getByRole("rowgroup", { name: "Insights" })).getAllByRole("row");
+    expect(insights[insights.length - 1]).toBe(row);
   });
 
   it("an unticked Active creates it inactive", async () => {
@@ -121,7 +126,7 @@ describe("MenuFormPage — edit", () => {
     expect(screen.getByText(/Fixed once created/)).toBeInTheDocument();
     expect(field(/^Label/)).toHaveValue("Facilities");
     expect(field(/^Path/)).not.toHaveAttribute("readonly");
-    expect(field(/^Sort order/)).toHaveValue(2);
+    expect(screen.queryByLabelText(/sort/i)).not.toBeInTheDocument();
   });
 
   it("saves changes, sending the unchanged key, and returns to the list", async () => {
@@ -131,13 +136,13 @@ describe("MenuFormPage — edit", () => {
 
     await user.clear(field(/^Label/));
     await user.type(field(/^Label/), "Sites");
-    await user.clear(field(/^Sort order/));
-    await user.type(field(/^Sort order/), "9");
     await user.click(field(/^Active/));
     await user.click(save());
 
     expect(await screen.findByRole("status")).toHaveTextContent("Saved “Sites”.");
-    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "facilities", label: "Sites", path: "/facilities", sortOrder: 9, isActive: false });
+    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "facilities", label: "Sites", path: "/facilities", isActive: false });
+    expect(mockDb.lastMenuBody).not.toHaveProperty("sortOrder"); // an edit never moves it
+    expect(mockDb.menus.find((m) => m.menuKey === "facilities")?.sortOrder).toBe(2);
     expect(await screen.findByRole("row", { name: /Sites/ })).toBeInTheDocument();
   });
 

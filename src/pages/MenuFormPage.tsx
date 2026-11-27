@@ -31,7 +31,6 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
       label: existing?.label ?? "",
       path: existing?.path ?? "",
       icon: existing?.icon ?? "",
-      sortOrder: existing?.sortOrder ?? 0,
       isActive: existing?.isActive ?? true,
     },
   });
@@ -44,7 +43,8 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
       label: values.label.trim(),
       path: protectedTab ? existing.path : values.path.trim(),
       icon: values.icon?.trim() || undefined,
-      sortOrder: values.sortOrder,
+      // No sortOrder, ever: an update leaves the position alone and a new entry goes to the end of Insights. Entries
+      // are arranged by dragging them on the Menus screen.
       isActive: protectedTab ? true : values.isActive,
     };
     const onError = (err: unknown) => {
@@ -64,7 +64,10 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
       create.mutate(payload, {
         onSuccess: () =>
           navigate("/menus", {
-            state: { saved: `Added “${payload.label}”. Now assign it to roles on the Roles screen.`, highlight: payload.menuKey },
+            state: {
+              saved: `Added “${payload.label}” at the end of Insights. Drag it into place, then assign it to roles on the Roles screen.`,
+              highlight: payload.menuKey,
+            },
           }),
         onError,
       });
@@ -155,33 +158,14 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
         </div>
 
         <div>
-          <label htmlFor="menu-sort" className="block text-sm font-medium text-gray-700">
-            Sort order
-          </label>
-          <input
-            id="menu-sort"
-            type="number"
-            min={0}
-            step={1}
-            aria-invalid={errors.sortOrder ? "true" : "false"}
-            className={input}
-            {...register("sortOrder", { valueAsNumber: true })}
-          />
-          {errors.sortOrder && (
-            <p role="alert" className="mt-1 text-sm text-red-700">
-              {errors.sortOrder.message}
-            </p>
-          )}
-        </div>
-
-        <div>
           <span className="block text-sm font-medium text-gray-700">Console</span>
           <p className={`${input} ${readOnly}`}>
             {existing?.console === "ADMIN" ? "Admin console" : "Insights"}
             <LockClosedIcon className="ml-1 inline h-3.5 w-3.5" aria-hidden="true" />
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            New entries are Insights; the admin console's tabs come from a migration.
+            New entries are Insights and go to the end of the list — drag them into place on the Menus screen. The admin
+            console's tabs come from a migration.
           </p>
         </div>
       </div>
