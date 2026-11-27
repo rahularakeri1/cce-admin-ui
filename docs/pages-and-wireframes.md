@@ -184,29 +184,42 @@ needs an actual design pass rather than guessing at layout.
 
 ## `/menus` — Menus Catalog (F-15, Milestone 9)
 
-Manages the **catalog itself** — the list of sidebar entries — not which roles get which entry (that is the role's
-own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every other role and the service refuses the calls.
+Manages the **catalog itself** — the list of sidebar entries and their order — not which roles get which entry (that is
+the role's own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every other role and the service refuses the
+calls.
 
 ```
-┌─ Menus ─────────────────────────────────────────────── [+ Add menu] ─────────────┐
-│ Label            Key              Path                 Sort  Status               │
-│ INSIGHTS                                                                           │
-│  Dashboard       dashboard        /                     1    Active  [Edit][Deactivate][Delete] │
-│  Events          events           /events               6    Inactive [Edit][Activate][Delete]  │
-│ ADMIN CONSOLE                                                                      │
-│  Users 🔒        admin-users      /users                1    Active  [Edit] (Deactivate, Delete disabled) │
-└────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Menus ──────────────────────────────────────────────────── [+ Add menu] ───────────────┐
+│ ● Order changed — not saved yet                              [Save order]  [Reset]       │
+│  #   Label           Key         Path        Status                                       │
+│ INSIGHTS                                                                                  │
+│  ⋮⋮ 1  Dashboard     dashboard   /           Active    [▲][▼] [Edit][Deactivate][Delete]  │
+│  ⋮⋮ 2  Events        events      /events     Inactive  [▲][▼] [Edit][Activate][Delete]    │
+│ ADMIN CONSOLE                                                                             │
+│  ⋮⋮ 1  Users 🔒      admin-users /users      Active    [▲][▼] [Edit] (Deactivate, Delete off) │
+└───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Table**, grouped *Insights* then *Admin console*, each by sort order: label (struck through when inactive), key,
-  path, sort order, status. An action on one row (a refused deactivate) shows its message under that row.
-- **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, sort order,
-  active. The **key is permanent** — read-only when editing, with the reason. **Console** is shown but not
-  editable: entries made here are always *Insights*; the admin console's own tabs come from a migration (an admin tab
-  needs a screen built in code). Checked in the browser first (key lower-case letters/digits/`-`/`_`, path starts
-  with `/`, whole-number sort order ≥ 0); a duplicate key (`409`) is explained next to the key field and nothing typed is
-  lost. Saving returns to the table with a message and the saved row highlighted; adding says *"Now assign it to
-  roles on the Roles screen."*
+- **Table**, grouped *Insights* then *Admin console*: position, label (struck through when inactive), key, path, status.
+  An action on one row (a refused deactivate) shows its message under that row.
+- **Arranging.** Drag a row by its ⋮⋮ handle to where it should go — within its own group; a drop onto the other group
+  is ignored. The ▲ / ▼ buttons on every row do the same one step at a time, for keyboards and touch screens (▲ is off on
+  the first row of a group, ▼ on the last). The new order shows at once as a **draft**: a bar appears with **Save order**
+  and **Reset**. Nothing is stored until **Save order**, which sends the complete order of each changed group in one call
+  per group (`PUT /menus/order`) and then re-reads the list; **Reset** drops the draft. There are no sort numbers to type
+  anywhere: the numbers shown are just positions. The admin console's own tabs can be arranged too — that changes the
+  order of this console's sidebar, which updates when saved.
+- **If the list changed meanwhile** (another admin added or deleted an entry while you were arranging), the save is
+  refused (`409 MENU_ORDER_OUTDATED`): the screen says the list changed, reloads it and drops the draft, so you arrange
+  again against the current list. An entry deleted while you have a draft simply drops out of it; one added appears at
+  the end of its group.
+- **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, active. The **key is
+  permanent** — read-only when editing, with the reason. **Console** is shown but not editable: entries made here are
+  always *Insights*; the admin console's own tabs come from a migration (an admin tab needs a screen built in code). A new
+  entry goes to the **end of Insights**, and the form says so — drag it into place afterwards. Checked in the browser first
+  (key lower-case letters/digits/`-`/`_`, path starts with `/`); a duplicate key (`409`) is explained next to the key field
+  and nothing typed is lost. Saving returns to the table with a message and the saved row highlighted; adding says
+  *"Added … at the end of Insights. Drag it into place, then assign it to roles on the Roles screen."*
 - **Deactivate / Activate** is the usual way to retire an entry: it disappears from **every** sidebar but keeps its
   role assignments, and activating brings it back for the same roles.
 - **Delete** is the drastic one and asks first, in a dialog that names the real consequence — *"This also removes it from
@@ -214,10 +227,10 @@ own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every other role a
   Escape change nothing. (The dialog does not list the affected roles; that would need an API addition.)
 - **The four admin tabs are protected** (a 🔒 on the label): their Deactivate and Delete are disabled with the reason,
   and on Edit their key and path are read-only and *Active* is locked on — otherwise the console could be locked
-  out from its own catalog screen. Label and sort order stay editable. The server refuses the same things (`409
+  out from its own catalog screen. Label and position stay editable. The server refuses the same things (`409
   ADMIN_MENU_PROTECTED`), so calling the API directly doesn't get round it.
-- Any change refetches the catalog, every role's saved menus and **this console's own sidebar**, so renaming an
-  admin tab shows in the sidebar at once.
+- Any change refetches the catalog, every role's saved menus and **this console's own sidebar**, so renaming or
+  re-arranging an admin tab shows in the sidebar at once.
 - Flat table, simplified from the PRD's NAV/DETAIL tree — see
   [cce-admin-service data dictionary §1.3](../../cce-admin-service/docs/data-dictionary.md#13-menus--console-screen-catalog).
 
