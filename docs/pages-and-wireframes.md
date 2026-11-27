@@ -182,23 +182,44 @@ needs an actual design pass rather than guessing at layout.
 - The failed state is the shared `SyncFailedNotice` (architecture-overview.md §4) with a manual **Re-sync**
   button (`POST /roles/:id/sync`) — the same component the create-user flow reuses (F-05).
 
-## `/menus` — Menus Catalog (F-15)
+## `/menus` — Menus Catalog (F-15, Milestone 9)
+
+Manages the **catalog itself** — the list of sidebar entries — not which roles get which entry (that is the role's
+own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every other role and the service refuses the calls.
 
 ```
-┌─ Menus ────────────────────────────────────────── [+ Add Menu] ─────┐
-│   Dashboard                /                            [edit][✕]   │
-│   Facilities               /facilities                  [edit][✕]   │
-│   Compliance                /compliance                 [edit][✕]   │
-│   Patients                  /compliance/patients         [edit][✕]  │
-└───────────────────────────────────────────────────────────────────┘
+┌─ Menus ─────────────────────────────────────────────── [+ Add menu] ─────────────┐
+│ Label            Key              Path                 Sort  Status               │
+│ INSIGHTS                                                                           │
+│  Dashboard       dashboard        /                     1    Active  [Edit][Deactivate][Delete] │
+│  Events          events           /events               6    Inactive [Edit][Activate][Delete]  │
+│ ADMIN CONSOLE                                                                      │
+│  Users 🔒        admin-users      /users                1    Active  [Edit] (Deactivate, Delete disabled) │
+└────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Flat table, ordered by `sort_order` (simplified from the PRD's NAV/DETAIL tree — see
-  [cce-admin-service data dictionary §1.3](../../cce-admin-service/docs/data-dictionary.md#13-menus--console-screen-catalog)).
-  Add/edit form: `menuKey`, `label`, `path`, `icon`, `sortOrder`, `isActive`.
-- "Deactivate" (toggle `isActive`) rather than delete is the primary action for retiring a menu — a
-  hard delete also removes the menu's `role_menus` rows (every role that had it loses the assignment
-  silently), so the delete action should carry a confirm dialog naming that consequence.
+- **Table**, grouped *Insights* then *Admin console*, each by sort order: label (struck through when inactive), key,
+  path, sort order, status. An action on one row (a refused deactivate) shows its message under that row.
+- **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, sort order,
+  active. The **key is permanent** — read-only when editing, with the reason. **Console** is shown but not
+  editable: entries made here are always *Insights*; the admin console's own tabs come from a migration (an admin tab
+  needs a screen built in code). Checked in the browser first (key lower-case letters/digits/`-`/`_`, path starts
+  with `/`, whole-number sort order ≥ 0); a duplicate key (`409`) is explained next to the key field and nothing typed is
+  lost. Saving returns to the table with a message and the saved row highlighted; adding says *"Now assign it to
+  roles on the Roles screen."*
+- **Deactivate / Activate** is the usual way to retire an entry: it disappears from **every** sidebar but keeps its
+  role assignments, and activating brings it back for the same roles.
+- **Delete** is the drastic one and asks first, in a dialog that names the real consequence — *"This also removes it from
+  every role that has it. Those roles lose it silently, and it can't be undone"* — and points to Deactivate. Cancel and
+  Escape change nothing. (The dialog does not list the affected roles; that would need an API addition.)
+- **The four admin tabs are protected** (a 🔒 on the label): their Deactivate and Delete are disabled with the reason,
+  and on Edit their key and path are read-only and *Active* is locked on — otherwise the console could be locked
+  out from its own catalog screen. Label and sort order stay editable. The server refuses the same things (`409
+  ADMIN_MENU_PROTECTED`), so calling the API directly doesn't get round it.
+- Any change refetches the catalog, every role's saved menus and **this console's own sidebar**, so renaming an
+  admin tab shows in the sidebar at once.
+- Flat table, simplified from the PRD's NAV/DETAIL tree — see
+  [cce-admin-service data dictionary §1.3](../../cce-admin-service/docs/data-dictionary.md#13-menus--console-screen-catalog).
 
 ---
 

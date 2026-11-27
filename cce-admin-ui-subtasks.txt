@@ -363,7 +363,7 @@ ACCEPTANCE CRITERIA:
     path and a clean 201 with no warnings
 
 ================================================================================
-SUB-TASK U11: Menus Catalog
+SUB-TASK U11: Menus Catalog  [DONE - Milestone 9]
 ================================================================================
 
 DESCRIPTION:

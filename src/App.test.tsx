@@ -73,6 +73,27 @@ describe("App shell — role-aware sidebar", () => {
     expect(mockDb.protocolListCalls).toBe(0);
   });
 
+  it("the Menus tab opens the catalog and its add/edit sub-pages", async () => {
+    renderApp("/menus");
+    expect(await screen.findByRole("rowgroup", { name: "Insights" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "+ Add menu" })).toHaveAttribute("href", "/menus/new");
+  });
+
+  it("renaming an admin tab in the catalog updates this console's own sidebar straight away", async () => {
+    renderApp("/menus/m-a4");
+    const user = userEvent.setup();
+    await within(sidebar()).findByRole("link", { name: "Protocols" });
+    await screen.findByRole("heading", { name: "Edit “Protocols”" });
+
+    const label = screen.getByLabelText(/^Label/);
+    await user.clear(label);
+    await user.type(label, "Protocol library");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await within(sidebar()).findByRole("link", { name: "Protocol library" })).toBeInTheDocument();
+    expect(within(sidebar()).queryByRole("link", { name: "Protocols" })).not.toBeInTheDocument();
+  });
+
   it("uses the first allowed tab as the landing page", async () => {
     mockDb.myAdminMenuKeys = ["admin-roles", "admin-protocols"];
     renderApp("/");
