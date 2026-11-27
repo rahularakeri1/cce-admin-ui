@@ -4,6 +4,7 @@ import { LockClosedIcon } from "@heroicons/react/24/outline";
 import { ApiError } from "../api/client";
 import type { Menu, ConsoleName } from "../api/menus";
 import { InlineForbidden } from "../components/InlineForbidden";
+import { MenuIcon } from "../lib/menuIcons";
 import { useDeleteMenu, useMenuCatalog, useReorderMenus, useUpdateMenu } from "../hooks/useMenus";
 
 const GROUPS: { console: ConsoleName; title: string }[] = [
@@ -324,11 +325,12 @@ export default function MenusCatalogPage() {
                       </button>
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-500">{index + 1}</td>
-                    <td className={`px-3 py-2 ${menu.isActive ? "text-gray-900" : "text-gray-400 line-through"}`}>
-                      {menu.label}
-                      {locked && (
-                        <LockClosedIcon className="ml-1 inline h-3.5 w-3.5 text-gray-400" aria-label={PROTECTED_HINT} />
-                      )}
+                    <td className={`px-3 py-2 ${menu.isActive ? "text-gray-900" : "text-gray-400"}`}>
+                      <span className="inline-flex items-center gap-2">
+                        <MenuIcon name={menu.icon} className={`h-5 w-5 ${menu.isActive ? "" : "opacity-50"}`} />
+                        <span className={menu.isActive ? "" : "line-through"}>{menu.label}</span>
+                        {locked && <LockClosedIcon className="h-3.5 w-3.5 text-gray-400" aria-label={PROTECTED_HINT} />}
+                      </span>
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-gray-600">{menu.menuKey}</td>
                     <td className="px-3 py-2 font-mono text-xs text-gray-600">{menu.path}</td>
