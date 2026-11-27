@@ -142,8 +142,8 @@ function RoleRow({ role }: { role: Role }) {
       <td className="px-4 py-3 text-sm">
         {/* System roles get NO delete affordance at all — not a disabled one (F-12). */}
         <div className="flex flex-wrap items-center gap-3">
-          <Link to={`/roles/${role.id}`} aria-label={`Edit ${role.displayName}`} className="font-medium text-blue-700 hover:underline">
-            Edit
+          <Link to={`/roles/${role.id}`} aria-label={`${role.isSystem ? "View" : "Edit"} ${role.displayName}`} className="font-medium text-blue-700 hover:underline">
+            {role.isSystem ? "View" : "Edit"}
           </Link>
           {!role.isSystem && !confirming && (
             <button type="button" onClick={() => setConfirming(true)} className="font-medium text-red-700 hover:underline">
