@@ -117,6 +117,70 @@ describe("MenuFormPage — add", () => {
   });
 });
 
+describe("MenuFormPage — icon", () => {
+  const preview = () => screen.getByRole("img", { name: "Preview of the chosen icon" });
+
+  it("starts with an empty preview, and suggests the icons this console can draw", () => {
+    renderMenus("/menus/new");
+    expect(preview().querySelector("svg")).toBeNull();
+    const options = document.querySelectorAll("#menu-icon-names option");
+    expect(options.length).toBeGreaterThanOrEqual(60);
+    expect(document.querySelector('#menu-icon-names option[value="ChartBarIcon"]')).not.toBeNull();
+    expect(field(/^Icon/)).toHaveAttribute("list", "menu-icon-names");
+  });
+
+  it("previews a known icon as you type, with nothing flagged", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await user.type(field(/^Icon/), "ChartBarIcon");
+
+    expect(preview().querySelector("svg")).not.toBeNull();
+    expect(screen.queryByText(/isn't a known icon|can't draw/)).not.toBeInTheDocument();
+  });
+
+  it("a case slip gets the fix offered, and the preview shows the placeholder meanwhile", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await user.type(field(/^Icon/), "chartbaricon");
+
+    expect(screen.getByText(/did you mean/)).toHaveTextContent("“chartbaricon” isn't a known icon — did you mean ChartBarIcon?");
+    expect(preview().querySelector("[title]")).toHaveAttribute("title", expect.stringContaining("chartbaricon"));
+  });
+
+  it("an unknown name is flagged but still saves (another console may know more icons)", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await fillNew(user, { key: "reports", label: "Reports", path: "/reports", icon: "SomeOtherIcon" });
+
+    expect(screen.getByText(/isn't an icon this console can draw. It will still save, but shows a \? here/)).toBeInTheDocument();
+    await user.click(save());
+
+    await screen.findByRole("status");
+    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "reports", icon: "SomeOtherIcon" });
+  });
+
+  it("editing shows the saved icon straight away", async () => {
+    renderMenus("/menus/m-1");
+    await screen.findByRole("heading", { name: /Edit/ });
+    expect(field(/^Icon/)).toHaveValue("ChartBarIcon");
+    expect(preview().querySelector("svg")).not.toBeNull();
+  });
+
+  it("clearing the icon clears the preview and saves with none", async () => {
+    renderMenus("/menus/m-1");
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: /Edit/ });
+
+    await user.clear(field(/^Icon/));
+    expect(preview().querySelector("svg")).toBeNull();
+    await user.click(save());
+
+    await screen.findByRole("status");
+    expect(mockDb.lastMenuBody).not.toHaveProperty("icon");
+    expect(mockDb.menus[0].icon).toBeNull();
+  });
+});
+
 describe("MenuFormPage — edit", () => {
   it("loads the entry, with the key read-only and explained", async () => {
     renderMenus("/menus/m-2");

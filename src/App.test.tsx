@@ -107,6 +107,30 @@ describe("App shell — role-aware sidebar", () => {
     await waitFor(() => expect(linkNames()).toEqual(["Roles", "Users", "Menus", "Protocols"]));
   });
 
+  it("shows each tab's saved icon beside its label", async () => {
+    renderApp("/users");
+    const users = await within(sidebar()).findByRole("link", { name: "Users" });
+
+    for (const name of ["Users", "Roles", "Menus", "Protocols"]) {
+      const link = within(sidebar()).getByRole("link", { name });
+      expect(link.querySelector("svg"), name).not.toBeNull();
+      expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true"); // decoration: the name is just the label
+    }
+    expect(users).toHaveAccessibleName("Users");
+  });
+
+  it("a tab with no icon, or one this console can't draw, still shows its label and no icon", async () => {
+    mockDb.menus.find((m) => m.menuKey === "admin-protocols")!.icon = null;
+    mockDb.menus.find((m) => m.menuKey === "admin-menus")!.icon = "NopeIcon";
+    renderApp("/users");
+    await within(sidebar()).findByRole("link", { name: "Users" });
+
+    expect(within(sidebar()).getByRole("link", { name: "Protocols" }).querySelector("svg")).toBeNull();
+    expect(within(sidebar()).getByRole("link", { name: "Menus" }).querySelector("svg")).toBeNull(); // no ? in a user's sidebar
+    expect(within(sidebar()).getByRole("link", { name: "Roles" }).querySelector("svg")).not.toBeNull();
+    expect(linkNames()).toEqual(["Users", "Roles", "Menus", "Protocols"]); // nothing broke, nothing reordered
+  });
+
   it("uses the first allowed tab as the landing page", async () => {
     mockDb.myAdminMenuKeys = ["admin-roles", "admin-protocols"];
     renderApp("/");

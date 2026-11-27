@@ -5,6 +5,7 @@ import { useAdminMenus } from "./hooks/useAdminMenus";
 import { logout } from "./auth/keycloak";
 import { ApiError } from "./api/client";
 import type { MyMenu } from "./api/me";
+import { MenuIcon } from "./lib/menuIcons";
 import RolesListPage from "./pages/RolesListPage";
 import UserCreatePage from "./pages/UserCreatePage";
 import UserDetailPage from "./pages/UserDetailPage";
@@ -136,12 +137,14 @@ export default function App() {
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
-                  `block rounded-md px-3 py-2 text-sm font-medium ${
+                  `flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
                     isActive ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-100"
                   }`
                 }
               >
-                {item.label}
+                {/* The entry's saved icon. None, or a name this console can't draw, leaves a blank so labels still align. */}
+                <MenuIcon name={item.icon} unknown="blank" />
+                <span>{item.label}</span>
               </NavLink>
             </li>
           ))}
