@@ -181,6 +181,141 @@ describe("MenuFormPage — icon", () => {
   });
 });
 
+describe("MenuFormPage — icon picker", () => {
+  const browse = () => screen.getByRole("button", { name: "Browse icons" });
+  const picker = () => screen.queryByRole("group", { name: "Choose an icon" });
+  const preview = () => screen.getByRole("img", { name: "Preview of the chosen icon" });
+
+  it("is closed until Browse icons is pressed, and says it is expandable", async () => {
+    renderMenus("/menus/new");
+    expect(picker()).not.toBeInTheDocument();
+    expect(browse()).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.setup().click(browse());
+
+    expect(picker()).toBeInTheDocument();
+    expect(browse()).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("searchbox", { name: "Search icons" })).toHaveFocus();
+  });
+
+  it("choosing an icon fills the field and the preview, closes the picker and returns focus", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await user.click(browse());
+
+    await user.click(within(picker()!).getByRole("button", { name: "ChartBarIcon" }));
+
+    expect(field(/^Icon/)).toHaveValue("ChartBarIcon");
+    expect(preview().querySelector("svg")).not.toBeNull();
+    expect(picker()).not.toBeInTheDocument();
+    expect(browse()).toHaveFocus();
+  });
+
+  it("the chosen icon is what gets saved", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
+    await user.click(browse());
+    await user.click(within(picker()!).getByRole("button", { name: "StarIcon" }));
+    await user.click(save());
+
+    await screen.findByRole("status");
+    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "reports", icon: "StarIcon" });
+  });
+
+  it("searching narrows the grid, and the match can be chosen", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await user.click(browse());
+    await user.type(screen.getByRole("searchbox"), "calendar");
+
+    const names = within(picker()!).getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    expect(names).toContain("CalendarIcon");
+    expect(names).not.toContain("ChartBarIcon");
+    await user.click(within(picker()!).getByRole("button", { name: "CalendarIcon" }));
+    expect(field(/^Icon/)).toHaveValue("CalendarIcon");
+  });
+
+  it("None clears a previously chosen icon", async () => {
+    renderMenus("/menus/m-1"); // Dashboard has ChartBarIcon
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: /Edit/ });
+    await user.click(browse());
+    expect(within(picker()!).getByRole("button", { name: "ChartBarIcon" })).toHaveAttribute("aria-pressed", "true"); // the current one
+
+    await user.click(within(picker()!).getByRole("button", { name: "None" }));
+
+    expect(field(/^Icon/)).toHaveValue("");
+    expect(preview().querySelector("svg")).toBeNull();
+    await user.click(save());
+    await screen.findByRole("status");
+    expect(mockDb.menus[0].icon).toBeNull();
+  });
+
+  it("Escape and Close shut it without changing the field", async () => {
+    renderMenus("/menus/m-1");
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: /Edit/ });
+
+    await user.click(browse());
+    await user.keyboard("{Escape}");
+    expect(picker()).not.toBeInTheDocument();
+    expect(field(/^Icon/)).toHaveValue("ChartBarIcon");
+    expect(browse()).toHaveFocus();
+
+    await user.click(browse());
+    await user.click(within(picker()!).getByRole("button", { name: "Close" }));
+    expect(picker()).not.toBeInTheDocument();
+    expect(field(/^Icon/)).toHaveValue("ChartBarIcon");
+  });
+
+  it("Enter in the search box never submits the form", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await fillNew(user, { key: "reports", label: "Reports", path: "/reports" });
+    await user.click(browse());
+
+    await user.type(screen.getByRole("searchbox"), "chart{Enter}");
+
+    expect(mockDb.lastMenuBody).toBeNull(); // nothing was sent
+    expect(screen.getByRole("heading", { name: "Add menu" })).toBeInTheDocument();
+    expect(picker()).toBeInTheDocument();
+  });
+
+  it("an unknown name already in the field is shown in the picker as the current value", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await user.type(field(/^Icon/), "SomeOtherIcon");
+    await user.click(browse());
+
+    expect(within(picker()!).getByText(/Current value:/)).toHaveTextContent("SomeOtherIcon");
+  });
+
+  it("choosing from the picker clears the unknown-name warning", async () => {
+    renderMenus("/menus/new");
+    const user = userEvent.setup();
+    await user.type(field(/^Icon/), "NopeIcon");
+    expect(screen.getByText(/can draw/)).toBeInTheDocument();
+
+    await user.click(browse());
+    await user.click(within(picker()!).getByRole("button", { name: "UsersIcon" }));
+
+    expect(screen.queryByText(/isn't an icon this console can draw/)).not.toBeInTheDocument();
+  });
+
+  it("opening the picker on a protected admin tab works the same", async () => {
+    renderMenus("/menus/m-a4");
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: /Edit/ });
+    await user.click(browse());
+    await user.click(within(picker()!).getByRole("button", { name: "StarIcon" }));
+    await user.click(save());
+
+    await screen.findByRole("status");
+    expect(mockDb.lastMenuBody).toMatchObject({ menuKey: "admin-protocols", path: "/protocols", icon: "StarIcon", isActive: true });
+  });
+});
+
 describe("MenuFormPage — edit", () => {
   it("loads the entry, with the key read-only and explained", async () => {
     renderMenus("/menus/m-2");
