@@ -184,8 +184,6 @@ needs an actual design pass rather than guessing at layout.
 
 ## `/menus` — Menus Catalog (F-15, Milestone 9)
 
-> **Planned — docs first, not implemented yet.** The text below describes the target for these parts, which arrive in their own PRs; until each one merges, the screen does not have it:
-> - the icon picker in the form (Milestone 9d)
 
 Manages the **catalog itself** — the list of sidebar entries and their order — not which roles get which entry (that is
 the role's own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every other role and the service refuses the
