@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LockClosedIcon } from "@heroicons/react/24/outline";
 import { ApiError } from "../api/client";
 import type { Menu } from "../api/menus";
+import { IconPicker } from "../components/IconPicker";
 import { InlineForbidden } from "../components/InlineForbidden";
 import { useCreateMenu, useMenuCatalog, useUpdateMenu } from "../hooks/useMenus";
 import { isKnownIcon, MENU_ICON_NAMES, MenuIcon, suggestIcon } from "../lib/menuIcons";
@@ -24,6 +25,7 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
     register,
     handleSubmit,
     setError,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<MenuForm>({
@@ -37,6 +39,8 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
     },
   });
   const pending = create.isPending || update.isPending;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const browseRef = useRef<HTMLButtonElement>(null);
   const typedIcon = (watch("icon") ?? "").trim();
   const suggestion = typedIcon && !isKnownIcon(typedIcon) ? suggestIcon(typedIcon) : null;
 
@@ -166,6 +170,16 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
             <span className="flex h-9 w-9 flex-none items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-700" aria-label="Preview of the chosen icon" role="img">
               <MenuIcon name={typedIcon} className="h-6 w-6" />
             </span>
+            <button
+              ref={browseRef}
+              type="button"
+              onClick={() => setPickerOpen((open) => !open)}
+              aria-expanded={pickerOpen}
+              aria-controls="menu-icon-picker"
+              className="flex-none rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Browse icons
+            </button>
           </div>
           <datalist id="menu-icon-names">
             {MENU_ICON_NAMES.map((name) => (
@@ -203,6 +217,23 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
           </p>
         </div>
       </div>
+
+      {pickerOpen && (
+        <div id="menu-icon-picker">
+          <IconPicker
+            value={typedIcon}
+            onChoose={(name) => {
+              setValue("icon", name, { shouldDirty: true, shouldValidate: true });
+              setPickerOpen(false);
+              browseRef.current?.focus();
+            }}
+            onClose={() => {
+              setPickerOpen(false);
+              browseRef.current?.focus();
+            }}
+          />
+        </div>
+      )}
 
       <label className="flex items-center gap-2 text-sm text-gray-800">
         <input type="checkbox" disabled={protectedTab} {...register("isActive")} />
