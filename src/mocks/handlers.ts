@@ -45,6 +45,33 @@ const seedMenus = () => [
   { id: "m-a4", menuKey: "admin-protocols", label: "Protocols", path: "/protocols", icon: "DocumentTextIcon", console: "ADMIN", sortOrder: 4, isActive: true },
 ];
 
+// Mirrors cce-protocol-service's ProtocolDefinitionDto (see cce-admin-service docs/api-reference.md, Protocols).
+export interface MockProtocol {
+  id: string;
+  url: string;
+  version: string;
+  canonical: string;
+  status: "ACTIVE" | "RETIRED";
+  loadedAt: string;
+  definition: Record<string, unknown>;
+}
+
+const mockProtocol = (n: number, url: string, version: string, status: "ACTIVE" | "RETIRED", loadedAt: string): MockProtocol => ({
+  id: `p-${n}`,
+  url,
+  version,
+  canonical: `${url}|${version}`,
+  status,
+  loadedAt,
+  definition: { resourceType: "PlanDefinition", url, version, status: "active", action: [{ id: "a1" }, { id: "a2" }] },
+});
+
+// Newest first is applied by the handler, as the real service does with sort=loadedAt,desc.
+const seedProtocols = (): MockProtocol[] => [
+  mockProtocol(1, "http://openphc.org/PlanDefinition/emr-service-protocol", "1.0.0", "ACTIVE", "2026-10-26T10:49:36Z"),
+  mockProtocol(2, "http://openphc.org/PlanDefinition/anc", "2.1.0", "RETIRED", "2026-10-02T08:00:00Z"),
+];
+
 const seedRoles = () => [
   {
     id: "r-1",
@@ -86,6 +113,13 @@ export const mockDb = {
   rolesInUse: new Set<string>(),
   lastMenusPut: null as { roleId: string; body: { menuIds: string[] } } | null,
   nextRoleId: 2,
+  protocols: seedProtocols(),
+  nextProtocolId: 3,
+  lastProtocolUpload: null as { planDefinitionJson: string } | null,
+  protocolUploadCalls: 0,
+  protocolListCalls: 0,
+  // The next protocol call answers with this instead, once — a staged gateway 403, 5xx, etc.
+  protocolFailNext: null as { status: number; body: unknown } | null,
 };
 
 export function resetMockDb() {
@@ -110,6 +144,12 @@ export function resetMockDb() {
   mockDb.rolesInUse = new Set();
   mockDb.lastMenusPut = null;
   mockDb.nextRoleId = 2;
+  mockDb.protocols = seedProtocols();
+  mockDb.nextProtocolId = 3;
+  mockDb.lastProtocolUpload = null;
+  mockDb.protocolUploadCalls = 0;
+  mockDb.protocolListCalls = 0;
+  mockDb.protocolFailNext = null;
   syncState.permissionsSyncShouldFail = false;
   syncState.createUserEmailShouldFail = false;
   syncState.createUserKeycloakShouldFail = false;
@@ -122,7 +162,82 @@ function takeFailure() {
   return fail ? HttpResponse.json({ error: { code: fail.code, message: fail.message } }, { status: fail.status }) : null;
 }
 
+/** A staged protocol-call failure, consumed once (see mockDb.protocolFailNext). */
+function takeProtocolFailure() {
+  const fail = mockDb.protocolFailNext;
+  mockDb.protocolFailNext = null;
+  return fail ? HttpResponse.json(fail.body as Record<string, unknown>, { status: fail.status }) : null;
+}
+
+/** What the gateway actually answers in the two cases it answers itself (checked live). */
+export const GATEWAY_403 = { status: 403, body: { error: "Forbidden", message: "Access denied: Insufficient permissions", status: 403 } };
+/** The gateway's CORS refusal: an EMPTY 403 (checked live), before any permission check. */
+export const GATEWAY_CORS_403 = { status: 403, body: null };
+export const GATEWAY_DOWN_500 = {
+  status: 500,
+  body: { timestamp: "2026-11-26T11:48:46Z", path: "/v1/protocol/protocol-definitions", status: 500, error: "Internal Server Error", requestId: "r-1" },
+};
+
+const protocolError = (status: number, error: string, message: string) =>
+  HttpResponse.json({ status, error, message, timestamp: "2026-11-26T11:00:00Z" }, { status });
+
+const PROTOCOLS = "*/v1/protocol/protocol-definitions";
+
 export const handlers = [
+  // ---- cce-protocol-service, as reached through the gateway ---------------------------------------
+  http.get(PROTOCOLS, ({ request }) => {
+    mockDb.protocolListCalls += 1;
+    const failure = takeProtocolFailure();
+    if (failure) return failure;
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get("page") ?? 0);
+    const size = Number(url.searchParams.get("size") ?? 20);
+    const sorted = [...mockDb.protocols].sort((a, b) => b.loadedAt.localeCompare(a.loadedAt));
+    return HttpResponse.json({
+      content: sorted.slice(page * size, page * size + size),
+      totalElements: sorted.length,
+      totalPages: Math.max(1, Math.ceil(sorted.length / size)),
+      number: page,
+      size,
+    });
+  }),
+  http.get(`${PROTOCOLS}/:id`, ({ params }) => {
+    const failure = takeProtocolFailure();
+    if (failure) return failure;
+    const found = mockDb.protocols.find((p) => p.id === params.id);
+    return found ? HttpResponse.json(found) : protocolError(404, "Not Found", `Protocol definition not found: ${String(params.id)}`);
+  }),
+  http.post(PROTOCOLS, async ({ request }) => {
+    mockDb.protocolUploadCalls += 1;
+    const body = (await request.json()) as { planDefinitionJson: string };
+    mockDb.lastProtocolUpload = body;
+    const failure = takeProtocolFailure();
+    if (failure) return failure;
+    let doc: { url?: string; version?: string };
+    try {
+      doc = JSON.parse(body.planDefinitionJson);
+    } catch {
+      return protocolError(422, "Unprocessable Entity", "HAPI-1861: Failed to parse JSON encoded FHIR content");
+    }
+    if (mockDb.protocols.some((p) => p.url === doc.url && p.version === doc.version)) {
+      return protocolError(400, "Bad Request", `Protocol definition already exists for url=${doc.url}, version=${doc.version}`);
+    }
+    const created = mockProtocol(mockDb.nextProtocolId++, doc.url ?? "", doc.version ?? "", "ACTIVE", new Date().toISOString());
+    created.definition = doc as Record<string, unknown>;
+    mockDb.protocols.push(created);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+  http.post(`${PROTOCOLS}/:id/retire`, ({ params }) => {
+    const failure = takeProtocolFailure();
+    if (failure) return failure;
+    const found = mockDb.protocols.find((p) => p.id === params.id);
+    if (!found) return protocolError(404, "Not Found", `Protocol definition not found: ${String(params.id)}`);
+    if (found.status === "RETIRED") return protocolError(409, "Conflict", `Protocol definition is already retired: ${found.id}`);
+    found.status = "RETIRED";
+    return HttpResponse.json(found);
+  }),
+
+  // ---- cce-admin-service ----------------------------------------------------------------------------
   http.get(`${BASE}/me`, () =>
     HttpResponse.json({
       data: { id: "u-1", username: "jdoe", roles: ["SUPER_ADMIN"], facilityScope: null },

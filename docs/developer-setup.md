@@ -56,7 +56,7 @@ server: {
 3. MSW handlers mirroring
    [cce-admin-service/docs/api-reference.md](../../cce-admin-service/docs/api-reference.md), including
    a toggleable `KEYCLOAK_SYNC_FAILED` response.
-4. App shell: sidebar from `GET /me/menus?console=ADMIN` + header from `GET /me` (Milestone 7; a role sees only the tabs it carries). *(Milestone 8 adds a dev-server proxy so `/v1/protocol` reaches the local gateway, with the protocol service on port 8091.)*
+4. App shell: sidebar from `GET /me/menus?console=ADMIN` + header from `GET /me` (Milestone 7; a role sees only the tabs it carries). Milestone 8: the Protocols tab calls `cce-protocol-service` through the gateway — the dev server forwards `/v1/protocol` to the local gateway (`:8090`), which routes it to the protocol service on `:8091`.
 5. Screens in PRD milestone order: Roles (F2) → Permissions tab (F3) → Users (F4) → Menus (F5) — see
    [cce-admin-ui-subtasks.txt] for the exact dependency-ordered breakdown.
 
@@ -69,3 +69,13 @@ server: {
 Once `cce-admin-service` is up locally (its own developer-setup.md), point this app at it directly
 via the Vite proxy above — no MSW. Run the PRD's scenarios S1–S6 end to end before considering a
 milestone done (same E2E gate as the backend).
+
+### Running the Protocols page locally (Milestone 8)
+
+The page needs the whole chain, not just this app: Vite (`:3002`) → local gateway (`:8090`) → `cce-protocol-service`
+(`:8091`). Start the protocol service with `SERVER_PORT=8091 ./gradlew bootRun` and the gateway with
+`cce-admin-service/scripts/run-gateway-local.sh` (it routes `/v1/protocol/**`), run the gateway sync once after
+`cce-admin-service` has applied V5 (see that repo's developer-setup), and sign in as a `SUPER_ADMIN`. If the
+protocol service is stopped, the page says "Protocol service unavailable" (the gateway answers `500`). To try the
+upload, use a copy of `emr-service-protocol.json` with a **different `version`** — the original is usually already
+loaded — and retire only that copy: retiring a protocol stops it matching events.

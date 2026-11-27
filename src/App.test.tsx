@@ -59,6 +59,20 @@ describe("App shell — role-aware sidebar", () => {
     expect(location()).toBe("/protocols");
   });
 
+  it("a user with the Protocols tab can open its sub-pages (upload, detail)", async () => {
+    mockDb.myAdminMenuKeys = ["admin-protocols"];
+    renderApp("/protocols/new");
+    expect(await screen.findByRole("heading", { name: "Upload protocol" })).toBeInTheDocument();
+    expect(location()).toBe("/protocols/new");
+  });
+
+  it("a user WITHOUT the Protocols tab is redirected away from a protocol URL typed by hand", async () => {
+    mockDb.myAdminMenuKeys = ["admin-roles"];
+    renderApp("/protocols/p-1");
+    await waitFor(() => expect(location()).toBe("/roles"));
+    expect(mockDb.protocolListCalls).toBe(0);
+  });
+
   it("uses the first allowed tab as the landing page", async () => {
     mockDb.myAdminMenuKeys = ["admin-roles", "admin-protocols"];
     renderApp("/");
