@@ -63,13 +63,14 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>) {
 type MenuState = "editable" | "locked" | "superAdminOnly";
 
 /**
- * What the server would do with this checkbox (PUT /roles/:id/menus): SUPER_ADMIN must keep every admin
- * tab (locked, ticked); the Users, Roles and Menus tabs belong to SUPER_ADMIN alone (greyed out on any
+ * What the server would do with this checkbox (PUT /roles/:id/menus): SUPER_ADMIN must keep every menu
+ * (locked, ticked); the Users, Roles and Menus tabs belong to SUPER_ADMIN alone (greyed out on any
  * other role); everything else — insights menus and the Protocols tab — is open to every role.
  */
 function menuState(menu: Menu, roleName: string): MenuState {
-  if (menu.console !== "ADMIN") return "editable";
+  // SUPER_ADMIN sees everything: every entry, admin tab or insights menu, is locked on (Milestone 9 follow-up).
   if (roleName === "SUPER_ADMIN") return "locked";
+  if (menu.console !== "ADMIN") return "editable";
   return SUPER_ADMIN_ONLY_MENU_KEYS.has(menu.menuKey) ? "superAdminOnly" : "editable";
 }
 
@@ -98,6 +99,7 @@ export function RoleMenusTab() {
   const changed = draft !== null && !sameSet(draft, serverSet);
   const saveError = save.error instanceof ApiError ? save.error : null;
   const roleName = role?.name ?? "";
+  const isSuperAdmin = roleName === "SUPER_ADMIN";
   // A locked tab is always sent ticked, whatever the last response said.
   const locked = catalog.data.filter((m) => menuState(m, roleName) === "locked").map((m) => m.id);
   const effective = new Set([...selected, ...locked]);
@@ -120,6 +122,11 @@ export function RoleMenusTab() {
         The tabs this role shows in each console. Saving replaces the whole set. Users, Roles and Menus are
         Super Admin only, so they can't be given to another role.
       </p>
+      {isSuperAdmin && (
+        <p className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          Super Admin sees every menu, so nothing here can be turned off.
+        </p>
+      )}
       <div className="space-y-4">
         {GROUPS.map((group) => {
           const items = catalog.data.filter((m) => m.console === group.console);
@@ -171,14 +178,16 @@ export function RoleMenusTab() {
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={!changed || save.isPending}
-        className="mt-4 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-      >
-        {save.isPending ? "Saving…" : "Save"}
-      </button>
+      {!isSuperAdmin && (
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={!changed || save.isPending}
+          className="mt-4 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {save.isPending ? "Saving…" : "Save"}
+        </button>
+      )}
     </div>
   );
 }

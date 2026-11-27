@@ -150,30 +150,29 @@ describe("RoleDetailPage — Menus tab, admin tab rules (Milestone 7)", () => {
     expect(saveButton()).toBeDisabled();
   });
 
-  it("shows all four admin tabs ticked and locked on SUPER_ADMIN, with the insights menus still editable", async () => {
+  it("shows every menu ticked and locked on SUPER_ADMIN, with a note and no Save button", async () => {
     mockDb.roleMenus["r-1"] = ["m-1", "m-a1", "m-a2", "m-a3", "m-a4"];
     renderAt("/roles/r-1");
     await screen.findByLabelText(/Dashboard/);
 
-    const admin = within(screen.getByRole("region", { name: "Admin console" }));
-    for (const box of admin.getAllByRole("checkbox")) {
+    for (const box of screen.getAllByRole("checkbox")) {
       expect(box).toBeChecked();
       expect(box).toBeDisabled();
     }
-    expect(screen.getAllByText("Always on for Super Admin")).toHaveLength(4);
-    expect(screen.getByLabelText(/Dashboard/)).toBeEnabled();
+    // all four admin tabs plus every insights menu in the catalog say so
+    expect(screen.getAllByText("Always on for Super Admin")).toHaveLength(mockDb.menus.length);
+    expect(screen.getByText("Super Admin sees every menu, so nothing here can be turned off.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Save$/ })).not.toBeInTheDocument();
   });
 
-  it("always sends SUPER_ADMIN's four admin tabs when its insights menus change", async () => {
-    mockDb.roleMenus["r-1"] = ["m-1", "m-a1", "m-a2", "m-a3", "m-a4"];
-    renderAt("/roles/r-1");
-    const user = userEvent.setup();
+  it("another role keeps its insights menus editable and has a Save button", async () => {
+    mockDb.roleMenus["r-2"] = ["m-1"];
+    renderAt("/roles/r-2");
     await screen.findByLabelText(/Dashboard/);
 
-    await user.click(screen.getByLabelText(/Facilities/));
-    await user.click(saveButton());
-
-    await waitFor(() => expect(mockDb.lastMenusPut?.body.menuIds).toEqual(["m-1", "m-2", "m-a1", "m-a2", "m-a3", "m-a4"]));
+    expect(screen.getByLabelText(/Facilities/)).toBeEnabled();
+    expect(saveButton()).toBeInTheDocument();
+    expect(screen.queryByText(/Super Admin sees every menu/)).not.toBeInTheDocument();
   });
 
   it("shows the server's 409 inline if it refuses a save the UI let through", async () => {
