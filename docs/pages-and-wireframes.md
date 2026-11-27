@@ -216,10 +216,14 @@ calls.
   again against the current list. An entry deleted while you have a draft simply drops out of it; one added appears at
   the end of its group.
 - **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, active. The **icon**
-  field shows a **live preview** of what you type and suggests names from a curated set of common Heroicons (the ten
-  already in use plus about fifty-five more) as you type; a name outside the set still saves — other consoles may know
-  more icons — but is flagged ("this console can't draw it") and, if it differs from a known name only by case, the
-  fix is offered ("Did you mean ChartBarIcon?"). The **key is
+  field shows a **live preview** and has a **Browse icons** button that opens a **picker**: a grid of every icon this
+  console can draw — shown as pictures, each with its name under it — so nobody needs to know the names. Click one to
+  choose it (the field and preview fill in and the picker closes); **None** clears it; a search box above the grid filters by
+  name ("chart", "user"). The chosen icon is highlighted. Arrow keys move around the grid, **Enter** chooses, **Esc** closes.
+  The set is a curated 65 common Heroicons (the ten already in use plus the rest). Typing a name is still allowed, with
+  suggestions as you type; a name outside the set still saves — other consoles may know more icons — but is flagged
+  ("this console can't draw it") and, if it differs from a known name only by case, the fix is offered ("Did you mean
+  ChartBarIcon?"). An entry that already holds a name outside the set shows it in the picker as the current value. The **key is
   permanent** — read-only when editing, with the reason. **Console** is shown but not editable: entries made here are
   always *Insights*; the admin console's own tabs come from a migration (an admin tab needs a screen built in code). A new
   entry goes to the **end of Insights**, and the form says so — drag it into place afterwards. Checked in the browser first
