@@ -34,8 +34,19 @@ export interface MockUser {
 
 export const ADMIN_MENU_KEYS = ["admin-users", "admin-roles", "admin-menus", "admin-protocols"];
 
+export interface MockMenu {
+  id: string;
+  menuKey: string;
+  label: string;
+  path: string;
+  icon: string | null;
+  console: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 // Insights menus first, then the four admin console tabs — the order GET /menus answers in.
-const seedMenus = () => [
+const seedMenus = (): MockMenu[] => [
   { id: "m-1", menuKey: "dashboard", label: "Dashboard", path: "/", icon: "ChartBarIcon", console: "INSIGHTS", sortOrder: 1, isActive: true },
   { id: "m-2", menuKey: "facilities", label: "Facilities", path: "/facilities", icon: "BuildingOffice2Icon", console: "INSIGHTS", sortOrder: 2, isActive: true },
   { id: "m-3", menuKey: "compliance", label: "Compliance", path: "/compliance", icon: "ClipboardDocumentCheckIcon", console: "INSIGHTS", sortOrder: 3, isActive: true },
@@ -94,6 +105,10 @@ export const mockDb = {
   // The admin tabs (menu keys) the signed-in user's roles carry; the default mock user is a SUPER_ADMIN.
   myAdminMenuKeys: [...ADMIN_MENU_KEYS],
   meMenusCalls: [] as string[],
+  nextMenuId: 1,
+  menuLoadFailNext: null as { status: number; code: string; message: string } | null,
+  menuDeleteCalls: 0,
+  lastMenuBody: null as Record<string, unknown> | null,
   users: [] as MockUser[],
   unsyncedRoleIds: new Set<string>(),
   // The next call to any /users/:id action answers with this error, once — lets a test stage 409s/502s.
@@ -128,6 +143,10 @@ export function resetMockDb() {
   mockDb.roleMenus = {};
   mockDb.myAdminMenuKeys = [...ADMIN_MENU_KEYS];
   mockDb.meMenusCalls = [];
+  mockDb.nextMenuId = 1;
+  mockDb.menuLoadFailNext = null;
+  mockDb.menuDeleteCalls = 0;
+  mockDb.lastMenuBody = null;
   mockDb.users = [];
   mockDb.unsyncedRoleIds = new Set();
   mockDb.failNext = null;
@@ -544,7 +563,78 @@ export const handlers = [
     });
   }),
 
-  http.get(`${BASE}/menus`, () => HttpResponse.json({ data: mockDb.menus })),
+  http.get(`${BASE}/menus`, () => {
+    // Its own one-shot switch, so a failure staged for another endpoint can't be consumed by the catalog read.
+    const fail = mockDb.menuLoadFailNext;
+    mockDb.menuLoadFailNext = null;
+    if (fail) return HttpResponse.json({ error: { code: fail.code, message: fail.message } }, { status: fail.status });
+    return HttpResponse.json({ data: mockDb.menus });
+  }),
+
+  // Mirrors cce-admin-service MenuService: key unique + permanent, entries made here are INSIGHTS, the admin
+  // console's own tabs can't be deleted, deactivated or moved. Sets mockDb.lastMenuBody for assertions.
+  http.post(`${BASE}/menus`, async ({ request }) => {
+    const body = (await request.json()) as { menuKey: string; label: string; path: string; icon?: string; sortOrder?: number; isActive?: boolean };
+    mockDb.lastMenuBody = body;
+    const failure = takeFailure();
+    if (failure) return failure;
+    if (mockDb.menus.some((m) => m.menuKey === body.menuKey)) {
+      return HttpResponse.json({ error: { code: "DUPLICATE_MENU_KEY", message: `Menu key already in use: ${body.menuKey}` } }, { status: 409 });
+    }
+    const created = {
+      id: `m-new-${mockDb.nextMenuId++}`,
+      menuKey: body.menuKey,
+      label: body.label,
+      path: body.path,
+      icon: body.icon ?? null,
+      console: "INSIGHTS",
+      sortOrder: body.sortOrder ?? 0,
+      isActive: body.isActive ?? true,
+    };
+    mockDb.menus.push(created);
+    return HttpResponse.json({ data: created }, { status: 201 });
+  }),
+  http.put(`${BASE}/menus/:id`, async ({ params, request }) => {
+    const body = (await request.json()) as { menuKey: string; label: string; path: string; icon?: string; sortOrder?: number; isActive?: boolean };
+    mockDb.lastMenuBody = body;
+    const failure = takeFailure();
+    if (failure) return failure;
+    const menu = mockDb.menus.find((m) => m.id === params.id);
+    if (!menu) return HttpResponse.json({ error: { code: "MENU_NOT_FOUND", message: "No menu" } }, { status: 404 });
+    if (menu.menuKey !== body.menuKey) {
+      return HttpResponse.json({ error: { code: "MENU_KEY_IMMUTABLE", message: "A menu's key can't be changed" } }, { status: 409 });
+    }
+    if (menu.console === "ADMIN" && (menu.path !== body.path || body.isActive === false)) {
+      return HttpResponse.json(
+        { error: { code: "ADMIN_MENU_PROTECTED", message: `The admin console's own tab "${menu.label}" is protected` } },
+        { status: 409 },
+      );
+    }
+    menu.label = body.label;
+    menu.path = body.path;
+    menu.icon = body.icon ?? null;
+    if (body.sortOrder !== undefined) menu.sortOrder = body.sortOrder;
+    if (body.isActive !== undefined) menu.isActive = body.isActive;
+    return HttpResponse.json({ data: menu });
+  }),
+  http.delete(`${BASE}/menus/:id`, ({ params }) => {
+    mockDb.menuDeleteCalls += 1;
+    const failure = takeFailure();
+    if (failure) return failure;
+    const menu = mockDb.menus.find((m) => m.id === params.id);
+    if (!menu) return HttpResponse.json({ error: { code: "MENU_NOT_FOUND", message: "No menu" } }, { status: 404 });
+    if (menu.console === "ADMIN") {
+      return HttpResponse.json(
+        { error: { code: "ADMIN_MENU_PROTECTED", message: `The admin console's own tab "${menu.label}" is protected` } },
+        { status: 409 },
+      );
+    }
+    mockDb.menus = mockDb.menus.filter((m) => m.id !== menu.id);
+    for (const roleId of Object.keys(mockDb.roleMenus)) {
+      mockDb.roleMenus[roleId] = mockDb.roleMenus[roleId].filter((id) => id !== menu.id); // exactly its own assignments
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.get(`${BASE}/health`, () => HttpResponse.json({ status: "UP" })),
 ];

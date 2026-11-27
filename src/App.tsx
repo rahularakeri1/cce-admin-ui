@@ -14,20 +14,13 @@ import RolePermissionsTab from "./pages/RolePermissionsTab";
 import ProtocolsListPage from "./pages/ProtocolsListPage";
 import ProtocolDetailPage from "./pages/ProtocolDetailPage";
 import ProtocolUploadPage from "./pages/ProtocolUploadPage";
+import MenusCatalogPage from "./pages/MenusCatalogPage";
+import MenuFormPage from "./pages/MenuFormPage";
 
 // The screens this build knows how to draw. The sidebar is NOT this list: it comes from
 // GET /me/menus?console=ADMIN (the user's own roles), and a tab the API returns that isn't drawn here
 // is simply not shown. See docs/architecture-overview.md §3 (this reverses the old static sidebar, F-03).
 const KNOWN_SCREENS = ["/users", "/roles", "/menus", "/protocols"];
-
-function Placeholder({ title, note }: { title: string; note: string }) {
-  return (
-    <div>
-      <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-      <p className="mt-2 text-sm text-gray-500">{note}</p>
-    </div>
-  );
-}
 
 function NoAccess() {
   return (
@@ -85,7 +78,11 @@ function AdminRoutes({ menus }: { menus: MyMenu[] }) {
         </>
       )}
       {has("/menus") && (
-        <Route path="/menus" element={<Placeholder title="Menus" note="Screen not built yet — a later milestone." />} />
+        <>
+          <Route path="/menus" element={<MenusCatalogPage />} />
+          <Route path="/menus/new" element={<MenuFormPage />} />
+          <Route path="/menus/:id" element={<MenuFormPage />} />
+        </>
       )}
       {has("/protocols") && (
         <>

@@ -25,3 +25,29 @@ export const SUPER_ADMIN_ONLY_MENU_KEYS: ReadonlySet<string> = new Set(["admin-u
 export async function listMenus(): Promise<Menu[]> {
   return (await request<Menu[]>("/menus")).data;
 }
+
+/**
+ * Body of POST and PUT /menus. On create a missing sortOrder is 0 and a missing isActive is true; on update they
+ * mean "unchanged" — the UI always sends everything. `console` is never sent: new entries are always INSIGHTS.
+ */
+export interface MenuInput {
+  menuKey: string;
+  label: string;
+  path: string;
+  icon?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export async function createMenu(input: MenuInput): Promise<Menu> {
+  return (await request<Menu>("/menus", { method: "POST", body: JSON.stringify(input) })).data;
+}
+
+export async function updateMenu(id: string, input: MenuInput): Promise<Menu> {
+  return (await request<Menu>(`/menus/${id}`, { method: "PUT", body: JSON.stringify(input) })).data;
+}
+
+/** Permanent. Also removes the entry from every role that held it (their other menus are untouched). */
+export async function deleteMenu(id: string): Promise<void> {
+  await request<void>(`/menus/${id}`, { method: "DELETE" });
+}
