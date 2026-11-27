@@ -7,6 +7,7 @@ import { ApiError } from "../api/client";
 import type { Menu } from "../api/menus";
 import { InlineForbidden } from "../components/InlineForbidden";
 import { useCreateMenu, useMenuCatalog, useUpdateMenu } from "../hooks/useMenus";
+import { isKnownIcon, MENU_ICON_NAMES, MenuIcon, suggestIcon } from "../lib/menuIcons";
 import { menuFormSchema, type MenuForm } from "../schemas/menu";
 
 const input = "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm";
@@ -23,6 +24,7 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors },
   } = useForm<MenuForm>({
     resolver: zodResolver(menuFormSchema),
@@ -35,6 +37,8 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
     },
   });
   const pending = create.isPending || update.isPending;
+  const typedIcon = (watch("icon") ?? "").trim();
+  const suggestion = typedIcon && !isKnownIcon(typedIcon) ? suggestIcon(typedIcon) : null;
 
   const onSubmit = handleSubmit((values) => {
     setFormError(null);
@@ -148,8 +152,38 @@ function MenuFormFields({ existing }: { existing?: Menu }) {
           <label htmlFor="menu-icon" className="block text-sm font-medium text-gray-700">
             Icon
           </label>
-          <input id="menu-icon" type="text" placeholder="e.g. ChartBarIcon" aria-invalid={errors.icon ? "true" : "false"} className={`${input} font-mono`} {...register("icon")} />
-          <p className="mt-1 text-xs text-gray-500">A Heroicons name.</p>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              id="menu-icon"
+              type="text"
+              list="menu-icon-names"
+              autoComplete="off"
+              placeholder="e.g. ChartBarIcon"
+              aria-invalid={errors.icon ? "true" : "false"}
+              className={`${input.replace("mt-1 ", "")} font-mono`}
+              {...register("icon")}
+            />
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-700" aria-label="Preview of the chosen icon" role="img">
+              <MenuIcon name={typedIcon} className="h-6 w-6" />
+            </span>
+          </div>
+          <datalist id="menu-icon-names">
+            {MENU_ICON_NAMES.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+          <p className="mt-1 text-xs text-gray-500">A Heroicons name — start typing to see suggestions.</p>
+          {typedIcon && !isKnownIcon(typedIcon) && (
+            <p className="mt-1 text-xs text-amber-700">
+              {suggestion ? (
+                <>
+                  “{typedIcon}” isn't a known icon — did you mean <strong>{suggestion}</strong>?
+                </>
+              ) : (
+                <>“{typedIcon}” isn't an icon this console can draw. It will still save, but shows a ? here.</>
+              )}
+            </p>
+          )}
           {errors.icon && (
             <p role="alert" className="mt-1 text-sm text-red-700">
               {errors.icon.message}

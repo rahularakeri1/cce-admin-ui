@@ -22,6 +22,46 @@ describe("MenusCatalogPage", () => {
     expect(admin.getByText("/protocols")).toBeInTheDocument();
   });
 
+  describe("icons", () => {
+    const iconOf = (row: RegExp) => within(rowOf(row)).queryAllByRole("cell")[2].querySelector("svg");
+
+    it("draws each entry's saved icon before its label", async () => {
+      renderMenus("/menus");
+      await screen.findByRole("rowgroup", { name: "Insights" });
+
+      for (const row of [/Dashboard/, /Facilities/, /Compliance/, /Users/, /Protocols/]) {
+        expect(iconOf(row), String(row)).not.toBeNull();
+      }
+    });
+
+    it("an entry with no icon shows none, and an inactive one keeps its icon (dimmed)", async () => {
+      mockDb.menus[0].icon = null; // Dashboard
+      mockDb.menus[1].isActive = false; // Facilities
+      renderMenus("/menus");
+      await screen.findByRole("rowgroup", { name: "Insights" });
+
+      expect(iconOf(/Dashboard/)).toBeNull();
+      expect(iconOf(/Facilities/)).not.toBeNull();
+    });
+
+    it("a name this console can't draw shows a ? that names it, so a typo is visible", async () => {
+      mockDb.menus[2].icon = "ClipbordIcon"; // Compliance, a typo
+      renderMenus("/menus");
+      await screen.findByRole("rowgroup", { name: "Insights" });
+
+      const cell = within(rowOf(/Compliance/)).getAllByRole("cell")[2];
+      expect(cell.querySelector("[title]")).toHaveAttribute("title", "“ClipbordIcon” isn't an icon this console can draw");
+      expect(cell.querySelector("svg")).not.toBeNull();
+    });
+
+    it("the icon doesn't change a row's accessible name or its actions", async () => {
+      renderMenus("/menus");
+      await screen.findByRole("rowgroup", { name: "Insights" });
+      expect(screen.getByRole("button", { name: "Delete Dashboard" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Edit Dashboard" })).toBeInTheDocument();
+    });
+  });
+
   it("offers + Add menu", async () => {
     renderMenus("/menus");
     expect(await screen.findByRole("link", { name: "+ Add menu" })).toHaveAttribute("href", "/menus/new");
