@@ -7,6 +7,11 @@ module.exports = {
   plugins: ["@typescript-eslint", "react-hooks", "react-refresh"],
   rules: {
     "react-refresh/only-export-components": "warn",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    // TypeScript already reports undefined names (and knows DOM/React types such as RequestInit and React.ReactNode),
+    // so core no-undef only produces false positives on .ts/.tsx files.
+    "no-undef": "off",
     "no-unused-vars": "off",
   },
   ignorePatterns: ["dist", "node_modules"],
