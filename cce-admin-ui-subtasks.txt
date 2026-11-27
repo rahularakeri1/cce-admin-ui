@@ -363,7 +363,7 @@ ACCEPTANCE CRITERIA:
     path and a clean 201 with no warnings
 
 ================================================================================
-SUB-TASK U11: Menus Catalog  [DONE - Milestone 9]
+SUB-TASK U11: Menus Catalog  [DONE - Milestone 9; arranging by drag = U17]
 ================================================================================
 
 DESCRIPTION:
@@ -521,6 +521,20 @@ SUB-TASK U16: Protocol Upload                                        (~3 hours) 
   ACCEPTANCE: a broken file never reaches the server; the sample
   emr-service-protocol.json uploads end to end.
 
-  ADDENDUM TOTAL: ~10 hours
+SUB-TASK U17: Arrange Menus (drag and drop)                          (~1.5 hours)
+  Added during Milestone 9 (the user asked to arrange menus by dragging instead of typing sort
+  numbers). Docs: docs/pages-and-wireframes.md (/menus). Needs backend A21.
+  1. The catalog table: a drag handle per row (native HTML drag, within a group only) plus
+     up/down buttons per row (keyboard and touch); positions replace the Sort column.
+  2. The order is a DRAFT with Save order / Reset; Save sends PUT /menus/order once per changed
+     group with the COMPLETE order, then refetches. 409 MENU_ORDER_OUTDATED: say the list changed,
+     reload, drop the draft. A draft reconciles with entries deleted/added meanwhile.
+  3. The sort-number field leaves the add/edit form; new entries go to the end of Insights.
+  ACCEPTANCE: dragging or the arrows rearrange a group and enable Save order; Reset restores;
+  Save sends every id in order and shows the saved order; a drop onto the other group does
+  nothing; a stale list is refused with a plain message; renaming/arranging an admin tab updates
+  the sidebar; the form has no sort field.
+
+  ADDENDUM TOTAL: ~10 hours (+ U17 ~1.5h added in Milestone 9)
 
 ================================================================================
