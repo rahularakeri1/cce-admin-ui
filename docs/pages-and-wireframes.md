@@ -184,7 +184,6 @@ needs an actual design pass rather than guessing at layout.
 
 ## `/menus` — Menus Catalog (F-15, Milestone 9)
 
-
 Manages the **catalog itself** — the list of sidebar entries and their order — not which roles get which entry (that is
 the role's own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every other role and the service refuses the
 calls.
