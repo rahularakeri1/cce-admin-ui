@@ -189,14 +189,14 @@ the role's own Menus tab). `SUPER_ADMIN` only: the tab is greyed out for every o
 calls.
 
 ```
-┌─ Menus ──────────────────────────────────────────────────── [+ Add menu] ───────────────┐
+┌─ Menus ──────────────────────────────────────────────────────────────────────────────────┐
 │ ● Order changed — not saved yet                              [Save order]  [Reset]       │
 │  #   Label           Key         Path        Status                                       │
 │ INSIGHTS                                                                                  │
-│  ⋮⋮ 1  Dashboard     dashboard   /           Active    [▲][▼] [Edit][Deactivate][Delete]  │
-│  ⋮⋮ 2  Events        events      /events     Inactive  [▲][▼] [Edit][Activate][Delete]    │
+│  ⋮⋮ 1  Dashboard     dashboard   /           Active    [▲][▼] [Edit][Deactivate]          │
+│  ⋮⋮ 2  Events        events      /events     Inactive  [▲][▼] [Edit][Activate]            │
 │ ADMIN CONSOLE                                                                             │
-│  ⋮⋮ 1  Users 🔒      admin-users /users      Active    [▲][▼] [Edit] (Deactivate, Delete off) │
+│  ⋮⋮ 1  Users 🔒      admin-users /users      Active    [▲][▼] [Edit] (Deactivate off)       │
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -211,11 +211,12 @@ calls.
   per group (`PUT /menus/order`) and then re-reads the list; **Reset** drops the draft. There are no sort numbers to type
   anywhere: the numbers shown are just positions. The admin console's own tabs can be arranged too — that changes the
   order of this console's sidebar, which updates when saved.
-- **If the list changed meanwhile** (another admin added or deleted an entry while you were arranging), the save is
+- **If the list changed meanwhile** (a release added an entry while you were arranging), the save is
   refused (`409 MENU_ORDER_OUTDATED`): the screen says the list changed, reloads it and drops the draft, so you arrange
-  again against the current list. An entry deleted while you have a draft simply drops out of it; one added appears at
-  the end of its group.
-- **+ Add menu** (`/menus/new`) and **Edit** (`/menus/:id`) share one form: key, label, path, icon, active. The **icon**
+  again against the current list. An entry added meanwhile appears at the end of its group.
+- **Edit** (`/menus/:id`) opens the entry's form: key, label, path, icon, active. There is **no Add menu and no Delete**: the
+  catalog is edit-only — a menu points at a page that has to exist in code, so entries come from migrations together with
+  their page (see the service's API reference). A bookmarked `/menus/new` goes back to the table. The **icon**
   field shows a **live preview** and has a **Browse icons** button that opens a **picker**: a grid of every icon this
   console can draw — shown as pictures, each with its name under it — so nobody needs to know the names. Click one to
   choose it (the field and preview fill in and the picker closes); **None** clears it; a search box above the grid filters by
@@ -224,18 +225,13 @@ calls.
   suggestions as you type; a name outside the set still saves — other consoles may know more icons — but is flagged
   ("this console can't draw it") and, if it differs from a known name only by case, the fix is offered ("Did you mean
   ChartBarIcon?"). An entry that already holds a name outside the set shows it in the picker as the current value. The **key is
-  permanent** — read-only when editing, with the reason. **Console** is shown but not editable: entries made here are
-  always *Insights*; the admin console's own tabs come from a migration (an admin tab needs a screen built in code). A new
-  entry goes to the **end of Insights**, and the form says so — drag it into place afterwards. Checked in the browser first
-  (key lower-case letters/digits/`-`/`_`, path starts with `/`); a duplicate key (`409`) is explained next to the key field
-  and nothing typed is lost. Saving returns to the table with a message and the saved row highlighted; adding says
-  *"Added … at the end of Insights. Drag it into place, then assign it to roles on the Roles screen."*
+  permanent** — read-only when editing, with the reason. **Console** is shown but not editable. Checked in the
+  browser first (label required, path starts with `/`). Saving returns to the table with a message and the saved row
+  highlighted. Changing a **path** to one the console's app has no page for makes the entry disappear from that sidebar
+  (the app hides links it cannot open), so the form warns about it.
 - **Deactivate / Activate** is the usual way to retire an entry: it disappears from **every** sidebar but keeps its
   role assignments, and activating brings it back for the same roles.
-- **Delete** is the drastic one and asks first, in a dialog that names the real consequence — *"This also removes it from
-  every role that has it. Those roles lose it silently, and it can't be undone"* — and points to Deactivate. Cancel and
-  Escape change nothing. (The dialog does not list the affected roles; that would need an API addition.)
-- **The four admin tabs are protected** (a 🔒 on the label): their Deactivate and Delete are disabled with the reason,
+- **The four admin tabs are protected** (a 🔒 on the label): their Deactivate is disabled with the reason,
   and on Edit their key and path are read-only and *Active* is locked on — otherwise the console could be locked
   out from its own catalog screen. Label and position stay editable. The server refuses the same things (`409
   ADMIN_MENU_PROTECTED`), so calling the API directly doesn't get round it.
